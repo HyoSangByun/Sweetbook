@@ -1,8 +1,16 @@
 .gradle/
+.gradle-home/
 build/
 out/
+bin/
+target/
+*.class
 *.iml
 .idea/
+.vscode/
 *.log
 .env
-
+.env.*
+!.env.example
+Thumbs.db
+.DS_Store
