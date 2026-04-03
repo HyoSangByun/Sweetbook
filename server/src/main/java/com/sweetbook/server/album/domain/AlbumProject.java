@@ -65,12 +65,11 @@ public class AlbumProject {
         if (title != null && !title.isBlank()) {
             this.title = title;
         }
-        if (subtitle != null) {
+        if (subtitle != null && !subtitle.isBlank()) {
             this.subtitle = subtitle;
         }
-        if (monthlyReview != null) {
+        if (monthlyReview != null && !monthlyReview.isBlank()) {
             this.monthlyReview = monthlyReview;
         }
     }
 }
-
