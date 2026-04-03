@@ -16,6 +16,7 @@ import com.sweetbook.server.album.repository.AlbumActivityRepository;
 import com.sweetbook.server.album.repository.AlbumProjectRepository;
 import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
+import com.sweetbook.server.photo.service.ActivityPhotoService;
 import com.sweetbook.server.photo.repository.ActivityPhotoRepository;
 import com.sweetbook.server.user.domain.User;
 import com.sweetbook.server.user.repository.UserRepository;
@@ -39,6 +40,7 @@ public class AlbumService {
     private final ActivityRepository activityRepository;
     private final UserRepository userRepository;
     private final ActivityPhotoRepository activityPhotoRepository;
+    private final ActivityPhotoService activityPhotoService;
 
     @Transactional
     public AlbumResponse createAlbum(Long userId, CreateAlbumRequest request) {
@@ -123,7 +125,7 @@ public class AlbumService {
                         "albumId=" + albumId + ", activityId=" + activityId
                 ));
 
-        activityPhotoRepository.deleteByAlbumActivityId(albumActivity.getId());
+        activityPhotoService.deleteAllForAlbumActivity(albumActivity);
         albumActivityRepository.delete(albumActivity);
         long selectedActivityCount = albumActivityRepository.countByAlbumProjectId(albumProject.getId());
         return new DeselectAlbumActivityResponse(true, selectedActivityCount);

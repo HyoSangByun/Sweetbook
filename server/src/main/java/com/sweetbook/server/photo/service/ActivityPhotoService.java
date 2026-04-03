@@ -109,6 +109,15 @@ public class ActivityPhotoService {
         return activityPhotoRepository.existsByAlbumActivityAlbumProjectId(albumId);
     }
 
+    @Transactional
+    public void deleteAllForAlbumActivity(AlbumActivity albumActivity) {
+        List<ActivityPhoto> photos = activityPhotoRepository.findAllByAlbumActivityIdOrderByCreatedAtDesc(albumActivity.getId());
+        for (ActivityPhoto photo : photos) {
+            registerAfterCommitFileDelete(Path.of(photo.getStoragePath()));
+        }
+        activityPhotoRepository.deleteAll(photos);
+    }
+
     @Transactional(readOnly = true)
     public List<ActivityPhotoItemResponse> listPhotos(Long userId, Long albumId, Long activityId) {
         AlbumProject albumProject = getOwnedAlbum(userId, albumId);
