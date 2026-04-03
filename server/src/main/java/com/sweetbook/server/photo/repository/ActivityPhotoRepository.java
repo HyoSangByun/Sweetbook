@@ -9,5 +9,6 @@ public interface ActivityPhotoRepository extends JpaRepository<ActivityPhoto, Lo
     Optional<ActivityPhoto> findByIdAndAlbumActivityId(Long id, Long albumActivityId);
 
     boolean existsByAlbumActivityAlbumProjectId(Long albumProjectId);
-}
 
+    void deleteByAlbumActivityId(Long albumActivityId);
+}

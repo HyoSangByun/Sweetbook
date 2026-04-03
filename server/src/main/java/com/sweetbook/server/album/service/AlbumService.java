@@ -26,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -96,17 +97,16 @@ public class AlbumService {
                             "activityId=" + activityId
                     ));
 
-            if (albumActivityRepository.existsByAlbumProjectIdAndActivityId(albumProject.getId(), activityId)) {
-                skippedCount++;
-                continue;
-            }
-
             AlbumActivity albumActivity = AlbumActivity.builder()
                     .albumProject(albumProject)
                     .activity(activity)
                     .build();
-            albumActivityRepository.save(albumActivity);
-            addedCount++;
+            try {
+                albumActivityRepository.saveAndFlush(albumActivity);
+                addedCount++;
+            } catch (DataIntegrityViolationException ex) {
+                skippedCount++;
+            }
         }
 
         long selectedActivityCount = albumActivityRepository.countByAlbumProjectId(albumProject.getId());
@@ -123,6 +123,7 @@ public class AlbumService {
                         "albumId=" + albumId + ", activityId=" + activityId
                 ));
 
+        activityPhotoRepository.deleteByAlbumActivityId(albumActivity.getId());
         albumActivityRepository.delete(albumActivity);
         long selectedActivityCount = albumActivityRepository.countByAlbumProjectId(albumProject.getId());
         return new DeselectAlbumActivityResponse(true, selectedActivityCount);
