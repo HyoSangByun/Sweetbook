@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
 
@@ -14,10 +15,9 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
             where a.user.id = :userId
             order by a.activityMonth desc
             """)
-    List<String> findDistinctMonthsByUserId(Long userId);
+    List<String> findDistinctMonthsByUserId(@Param("userId") Long userId);
 
     List<Activity> findAllByUserIdAndActivityMonthOrderByActivityDateTimeDesc(Long userId, String activityMonth);
 
     Optional<Activity> findByIdAndUserId(Long id, Long userId);
 }
-
