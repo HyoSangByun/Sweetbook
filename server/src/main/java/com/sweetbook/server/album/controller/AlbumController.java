@@ -9,6 +9,7 @@ import com.sweetbook.server.album.dto.UpdateAlbumRequest;
 import com.sweetbook.server.album.service.AlbumService;
 import com.sweetbook.server.common.response.ApiResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoDeleteResponse;
+import com.sweetbook.server.photo.dto.ActivityPhotoItemResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
 import com.sweetbook.server.photo.service.ActivityPhotoService;
 import com.sweetbook.server.security.AppUserPrincipal;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -104,6 +106,17 @@ public class AlbumController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 activityPhotoService.deletePhoto(principal.getUserId(), albumId, activityId, photoId)
+        ));
+    }
+
+    @GetMapping("/{albumId}/activities/{activityId}/photos")
+    public ResponseEntity<ApiResponse<List<ActivityPhotoItemResponse>>> listActivityPhotos(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @PathVariable Long activityId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                activityPhotoService.listPhotos(principal.getUserId(), albumId, activityId)
         ));
     }
 }

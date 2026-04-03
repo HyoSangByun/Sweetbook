@@ -8,6 +8,7 @@ import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.photo.domain.ActivityPhoto;
 import com.sweetbook.server.photo.dto.ActivityPhotoDeleteResponse;
+import com.sweetbook.server.photo.dto.ActivityPhotoItemResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
 import com.sweetbook.server.photo.repository.ActivityPhotoRepository;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +107,27 @@ public class ActivityPhotoService {
 
     public boolean hasAnyPhotoInAlbum(Long albumId) {
         return activityPhotoRepository.existsByAlbumActivityAlbumProjectId(albumId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActivityPhotoItemResponse> listPhotos(Long userId, Long albumId, Long activityId) {
+        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+        AlbumActivity albumActivity = albumActivityRepository
+                .findByAlbumProjectIdAndActivityId(albumProject.getId(), activityId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.ALBUM_ACTIVITY_NOT_FOUND,
+                        "albumId=" + albumId + ", activityId=" + activityId
+                ));
+
+        return activityPhotoRepository.findAllByAlbumActivityIdOrderByCreatedAtDesc(albumActivity.getId()).stream()
+                .map(photo -> new ActivityPhotoItemResponse(
+                        photo.getId(),
+                        photo.getOriginalFileName(),
+                        photo.getContentType(),
+                        photo.getFileSize(),
+                        photo.getCreatedAt()
+                ))
+                .toList();
     }
 
     private AlbumProject getOwnedAlbum(Long userId, Long albumId) {

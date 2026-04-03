@@ -97,13 +97,13 @@ public class AlbumService {
                             "activityId=" + activityId
                     ));
 
-            AlbumActivity albumActivity = AlbumActivity.builder()
-                    .albumProject(albumProject)
-                    .activity(activity)
-                    .build();
             try {
-                albumActivityRepository.saveAndFlush(albumActivity);
-                addedCount++;
+                int inserted = albumActivityRepository.insertAlbumActivity(albumProject.getId(), activity.getId());
+                if (inserted > 0) {
+                    addedCount++;
+                } else {
+                    skippedCount++;
+                }
             } catch (DataIntegrityViolationException ex) {
                 skippedCount++;
             }

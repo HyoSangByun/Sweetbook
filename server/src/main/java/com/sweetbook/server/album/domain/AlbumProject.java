@@ -37,7 +37,7 @@ public class AlbumProject {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 7)
+    @Column(name = "album_month", nullable = false, length = 7)
     private String month;
 
     @Column(nullable = false, length = 150)
