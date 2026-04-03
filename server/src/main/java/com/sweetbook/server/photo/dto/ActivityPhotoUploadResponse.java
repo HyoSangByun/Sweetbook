@@ -4,8 +4,6 @@ public record ActivityPhotoUploadResponse(
         Long photoId,
         String originalFileName,
         String contentType,
-        long fileSize,
-        String storagePath
+        long fileSize
 ) {
 }
-

@@ -11,20 +11,25 @@ import com.sweetbook.server.photo.dto.ActivityPhotoDeleteResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
 import com.sweetbook.server.photo.repository.ActivityPhotoRepository;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class ActivityPhotoService {
+
+    private static final Logger log = LoggerFactory.getLogger(ActivityPhotoService.class);
 
     private final AlbumProjectRepository albumProjectRepository;
     private final AlbumActivityRepository albumActivityRepository;
@@ -46,15 +51,13 @@ public class ActivityPhotoService {
         String originalFileName = sanitizeFileName(file.getOriginalFilename());
         String extension = extractExtension(originalFileName);
         String storedFileName = UUID.randomUUID() + extension;
-
         Path storagePath = buildStoragePath(albumProject.getId(), activityId, storedFileName);
+
+        byte[] fileBytes;
         try {
-            Files.createDirectories(storagePath.getParent());
-            try (InputStream inputStream = file.getInputStream()) {
-                Files.copy(inputStream, storagePath, StandardCopyOption.REPLACE_EXISTING);
-            }
+            fileBytes = file.getBytes();
         } catch (IOException ex) {
-            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "파일 저장 중 오류가 발생했습니다.");
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "Failed to read file bytes.");
         }
 
         ActivityPhoto activityPhoto = ActivityPhoto.builder()
@@ -67,12 +70,13 @@ public class ActivityPhotoService {
                 .build();
         ActivityPhoto saved = activityPhotoRepository.save(activityPhoto);
 
+        registerAfterCommitFileCopy(storagePath, fileBytes);
+
         return new ActivityPhotoUploadResponse(
                 saved.getId(),
                 saved.getOriginalFileName(),
                 saved.getContentType(),
-                saved.getFileSize(),
-                saved.getStoragePath()
+                saved.getFileSize()
         );
     }
 
@@ -93,13 +97,9 @@ public class ActivityPhotoService {
                 ));
 
         Path filePath = Path.of(activityPhoto.getStoragePath());
-        try {
-            Files.deleteIfExists(filePath);
-        } catch (IOException ex) {
-            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "파일 삭제 중 오류가 발생했습니다.");
-        }
-
         activityPhotoRepository.delete(activityPhoto);
+        registerAfterCommitFileDelete(filePath);
+
         return new ActivityPhotoDeleteResponse(true);
     }
 
@@ -114,17 +114,17 @@ public class ActivityPhotoService {
 
     private void validateImageFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일이 비어 있습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Image file is empty.");
         }
         if (file.getSize() > photoStorageProperties.maxFileSizeBytes()) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT,
-                    "이미지 파일 크기는 " + photoStorageProperties.maxFileSizeBytes() + " 바이트 이하여야 합니다."
+                    "Image file size exceeds max limit: " + photoStorageProperties.maxFileSizeBytes()
             );
         }
         String contentType = file.getContentType();
         if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일만 업로드할 수 있습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Only image files are allowed.");
         }
     }
 
@@ -151,5 +151,53 @@ public class ActivityPhotoService {
         }
         return fileName.substring(index);
     }
-}
 
+    private void registerAfterCommitFileCopy(Path storagePath, byte[] fileBytes) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "Transaction synchronization is not active.");
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    Files.createDirectories(storagePath.getParent());
+                    Path tempPath = storagePath.resolveSibling(storagePath.getFileName() + ".tmp");
+                    Files.write(tempPath, fileBytes);
+                    Files.move(tempPath, storagePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (IOException ex) {
+                    log.error("Failed to store photo after commit. path={}", storagePath, ex);
+                }
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    Path tempPath = storagePath.resolveSibling(storagePath.getFileName() + ".tmp");
+                    try {
+                        Files.deleteIfExists(tempPath);
+                    } catch (IOException ex) {
+                        log.warn("Failed to cleanup temp file after rollback. path={}", tempPath, ex);
+                    }
+                }
+            }
+        });
+    }
+
+    private void registerAfterCommitFileDelete(Path filePath) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "Transaction synchronization is not active.");
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    Files.deleteIfExists(filePath);
+                } catch (IOException ex) {
+                    log.error("Failed to delete photo after commit. path={}", filePath, ex);
+                }
+            }
+        });
+    }
+}
