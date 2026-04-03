@@ -12,9 +12,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -31,10 +34,17 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ActivityCsvImportService {
 
-    private static final DateTimeFormatter ACTIVITY_DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm:ss a", Locale.ENGLISH);
-    private static final DateTimeFormatter START_TIME_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
+    private static final long MAX_CSV_FILE_SIZE_BYTES = 10L * 1024L * 1024L;
+    private static final List<DateTimeFormatter> DATE_TIME_FORMATTERS = List.of(
+            DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm:ss a", Locale.ENGLISH).withResolverStyle(ResolverStyle.SMART),
+            DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm a", Locale.ENGLISH).withResolverStyle(ResolverStyle.SMART),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH).withResolverStyle(ResolverStyle.SMART),
+            DateTimeFormatter.ISO_LOCAL_DATE_TIME
+    );
+    private static final List<DateTimeFormatter> DATE_ONLY_FORMATTERS = List.of(
+            DateTimeFormatter.ISO_LOCAL_DATE,
+            DateTimeFormatter.ofPattern("yyyy/M/d", Locale.ENGLISH).withResolverStyle(ResolverStyle.SMART)
+    );
 
     private final UserRepository userRepository;
     private final ActivityRepository activityRepository;
@@ -42,15 +52,14 @@ public class ActivityCsvImportService {
 
     @Transactional
     public ActivityImportResponse importCsv(Long userId, MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일이 비어 있습니다.");
-        }
+        validateFile(file);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         int importedCount = 0;
         int skippedCount = 0;
+        List<ActivityImportResponse.SkippedRow> skippedRows = new ArrayList<>();
 
         try (
                 BufferedReader reader = new BufferedReader(
@@ -64,19 +73,31 @@ public class ActivityCsvImportService {
 
             List<String> rawHeaders = parseCsvLine(headerLine);
             List<String> normalizedHeaders = headerNormalizer.normalize(rawHeaders);
+            validateHeaders(normalizedHeaders);
 
             try (CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT)) {
                 for (CSVRecord record : parser) {
+                    long rowNumber = record.getRecordNumber() + 1; // 헤더 라인 보정
                     Map<String, String> row = toRow(normalizedHeaders, record);
                     String externalActivityId = trimToNull(getFirst(row, "Activity ID"));
                     LocalDateTime activityDateTime = parseActivityDateTime(row);
 
-                    if (externalActivityId == null || activityDateTime == null) {
+                    if (externalActivityId == null) {
                         skippedCount++;
+                        skippedRows.add(new ActivityImportResponse.SkippedRow(rowNumber, "Activity ID 값이 없습니다."));
+                        continue;
+                    }
+                    if (activityDateTime == null) {
+                        skippedCount++;
+                        skippedRows.add(new ActivityImportResponse.SkippedRow(
+                                rowNumber,
+                                "Activity Date/Start Time 날짜 파싱에 실패했습니다."
+                        ));
                         continue;
                     }
                     if (activityRepository.existsByUserIdAndExternalActivityId(userId, externalActivityId)) {
                         skippedCount++;
+                        skippedRows.add(new ActivityImportResponse.SkippedRow(rowNumber, "이미 적재된 Activity ID 입니다."));
                         continue;
                     }
 
@@ -111,7 +132,32 @@ public class ActivityCsvImportService {
             throw new BusinessException(ErrorCode.CSV_IMPORT_FAILED, ex.getMessage());
         }
 
-        return new ActivityImportResponse(importedCount, skippedCount);
+        return new ActivityImportResponse(importedCount, skippedCount, skippedRows);
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일이 비어 있습니다.");
+        }
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || !fileName.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일(.csv)만 업로드할 수 있습니다.");
+        }
+        if (file.getSize() > MAX_CSV_FILE_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일 크기는 10MB 이하여야 합니다.");
+        }
+    }
+
+    private void validateHeaders(List<String> headers) {
+        if (headers.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 헤더가 비어 있습니다.");
+        }
+        if (!headers.contains("Activity ID")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "필수 헤더(Activity ID)가 없습니다.");
+        }
+        if (!headers.contains("Activity Date") && !headers.contains("Start Time")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "필수 헤더(Activity Date 또는 Start Time)가 없습니다.");
+        }
     }
 
     private Map<String, String> toRow(List<String> headers, CSVRecord record) {
@@ -146,17 +192,32 @@ public class ActivityCsvImportService {
 
     private LocalDateTime parseActivityDateTime(Map<String, String> row) {
         String activityDate = trimToNull(getFirst(row, "Activity Date"));
-        if (activityDate != null) {
+        LocalDateTime parsedFromActivityDate = parseDateTimeFlexible(activityDate);
+        if (parsedFromActivityDate != null) {
+            return parsedFromActivityDate;
+        }
+
+        String startTime = trimToNull(getFirst(row, "Start Time"));
+        return parseDateTimeFlexible(startTime);
+    }
+
+    private LocalDateTime parseDateTimeFlexible(String value) {
+        String input = trimToNull(value);
+        if (input == null) {
+            return null;
+        }
+
+        for (DateTimeFormatter formatter : DATE_TIME_FORMATTERS) {
             try {
-                return LocalDateTime.parse(activityDate, ACTIVITY_DATE_FORMATTER);
+                return LocalDateTime.parse(input, formatter);
             } catch (DateTimeParseException ignored) {
             }
         }
 
-        String startTime = trimToNull(getFirst(row, "Start Time"));
-        if (startTime != null) {
+        for (DateTimeFormatter formatter : DATE_ONLY_FORMATTERS) {
             try {
-                return LocalDateTime.parse(startTime, START_TIME_FORMATTER);
+                LocalDate date = LocalDate.parse(input, formatter);
+                return date.atStartOfDay();
             } catch (DateTimeParseException ignored) {
             }
         }
@@ -193,7 +254,21 @@ public class ActivityCsvImportService {
         if (trimmed == null) {
             return null;
         }
-        return trimmed.replace(",", ".");
+
+        String normalized = trimmed.replaceAll("[^0-9,\\.\\-+]", "");
+        if (normalized.isBlank() || normalized.equals("-") || normalized.equals("+")) {
+            return null;
+        }
+
+        if (normalized.contains(",") && normalized.contains(".")) {
+            // 1,234.56 형태는 쉼표를 천 단위 구분자로 본다.
+            normalized = normalized.replace(",", "");
+        } else if (normalized.contains(",")) {
+            // 12,34 형태는 쉼표를 소수점으로 본다.
+            normalized = normalized.replace(",", ".");
+        }
+
+        return normalized;
     }
 
     private String trimToNull(String value) {
@@ -204,4 +279,3 @@ public class ActivityCsvImportService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 }
-
