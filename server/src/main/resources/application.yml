@@ -17,6 +17,10 @@ spring:
   h2:
     console:
       enabled: true
+  servlet:
+    multipart:
+      max-file-size: ${PHOTO_MAX_FILE_SIZE_BYTES:10485760}
+      max-request-size: ${PHOTO_MAX_FILE_SIZE_BYTES:10485760}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -25,4 +29,7 @@ app:
   jwt:
     secret: ${JWT_SECRET:please-change-this-secret-key-to-at-least-32-bytes}
     access-token-expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION_SECONDS:3600}
+  photo:
+    storage-dir: ${PHOTO_STORAGE_DIR:uploads/activity-photos}
+    max-file-size-bytes: ${PHOTO_MAX_FILE_SIZE_BYTES:10485760}
 
