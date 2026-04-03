@@ -20,4 +20,6 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findAllByUserIdAndActivityMonthOrderByActivityDateTimeDesc(Long userId, String activityMonth);
 
     Optional<Activity> findByIdAndUserId(Long id, Long userId);
+
+    boolean existsByUserIdAndExternalActivityId(Long userId, String externalActivityId);
 }

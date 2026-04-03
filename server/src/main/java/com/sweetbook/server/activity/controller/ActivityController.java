@@ -1,21 +1,27 @@
 package com.sweetbook.server.activity.controller;
 
 import com.sweetbook.server.activity.dto.ActivityDetailResponse;
+import com.sweetbook.server.activity.dto.ActivityImportResponse;
 import com.sweetbook.server.activity.dto.ActivityMonthResponse;
 import com.sweetbook.server.activity.dto.ActivityStatsResponse;
 import com.sweetbook.server.activity.dto.ActivitySummaryResponse;
+import com.sweetbook.server.activity.service.ActivityCsvImportService;
 import com.sweetbook.server.activity.service.ActivityService;
 import com.sweetbook.server.common.response.ApiResponse;
 import com.sweetbook.server.security.AppUserPrincipal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,6 +29,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class ActivityController {
 
     private final ActivityService activityService;
+    private final ActivityCsvImportService activityCsvImportService;
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ActivityImportResponse>> importCsv(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @RequestPart("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(activityCsvImportService.importCsv(principal.getUserId(), file)));
+    }
 
     @GetMapping("/months")
     public ResponseEntity<ApiResponse<List<ActivityMonthResponse>>> getMonths(

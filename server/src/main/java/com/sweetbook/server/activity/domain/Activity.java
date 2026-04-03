@@ -11,6 +11,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -27,6 +28,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Table(
         name = "activities",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_activities_user_external", columnNames = {"user_id", "external_activity_id"})
+        },
         indexes = {
                 @Index(name = "idx_activities_user_month", columnList = "user_id,activity_month"),
                 @Index(name = "idx_activities_external_id", columnList = "external_activity_id")
