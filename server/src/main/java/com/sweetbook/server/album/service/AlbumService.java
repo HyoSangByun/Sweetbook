@@ -5,6 +5,7 @@ import com.sweetbook.server.activity.repository.ActivityRepository;
 import com.sweetbook.server.album.domain.AlbumActivity;
 import com.sweetbook.server.album.domain.AlbumProject;
 import com.sweetbook.server.album.domain.AlbumProjectStatus;
+import com.sweetbook.server.album.domain.BookGenerationStatus;
 import com.sweetbook.server.album.dto.AlbumActivityItemResponse;
 import com.sweetbook.server.album.dto.AlbumResponse;
 import com.sweetbook.server.album.dto.CreateAlbumRequest;
@@ -55,6 +56,7 @@ public class AlbumService {
                 .subtitle(request.subtitle())
                 .monthlyReview(request.monthlyReview())
                 .status(AlbumProjectStatus.DRAFT)
+                .bookStatus(BookGenerationStatus.NOT_GENERATED)
                 .build();
 
         AlbumProject saved = albumProjectRepository.save(albumProject);
@@ -181,6 +183,9 @@ public class AlbumService {
                 albumProject.getSubtitle(),
                 albumProject.getMonthlyReview(),
                 albumProject.getStatus(),
+                albumProject.getBookUid(),
+                albumProject.getBookStatus(),
+                albumProject.getBookGeneratedAt(),
                 hasPhoto,
                 selectedActivities.size(),
                 selectedActivities,

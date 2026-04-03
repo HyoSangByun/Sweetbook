@@ -8,6 +8,7 @@ import com.sweetbook.server.activity.repository.ActivityRepository;
 import com.sweetbook.server.album.domain.AlbumActivity;
 import com.sweetbook.server.album.domain.AlbumProject;
 import com.sweetbook.server.album.domain.AlbumProjectStatus;
+import com.sweetbook.server.album.domain.BookGenerationStatus;
 import com.sweetbook.server.album.repository.AlbumActivityRepository;
 import com.sweetbook.server.album.repository.AlbumProjectRepository;
 import com.sweetbook.server.common.exception.BusinessException;
@@ -141,6 +142,7 @@ class ActivityPhotoServiceTest {
                 .subtitle("sub")
                 .monthlyReview("review")
                 .status(AlbumProjectStatus.DRAFT)
+                .bookStatus(BookGenerationStatus.NOT_GENERATED)
                 .build();
     }
 
