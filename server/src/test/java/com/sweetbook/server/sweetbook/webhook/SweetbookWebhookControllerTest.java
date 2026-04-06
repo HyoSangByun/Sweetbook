@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sweetbook.server.order.service.OrderService;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "app.sweetbook.webhook-secret=test-webhook-secret"
+        "app.sweetbook.webhook-secret=test-webhook-secret",
+        "app.sweetbook.webhook-timestamp-tolerance=10m"
 })
 @AutoConfigureMockMvc
 class SweetbookWebhookControllerTest {
@@ -31,9 +33,16 @@ class SweetbookWebhookControllerTest {
     private OrderService orderService;
 
     @Test
-    void 유효한_서명이면_webhook을_수신하고_200을_반환한다() throws Exception {
-        String timestamp = "1709280000";
-        String body = "{\"data\":{\"orderUid\":\"or_abc123\",\"orderStatus\":30,\"orderStatusDisplay\":\"제작 확정\",\"orderedAt\":\"2026-04-06T01:10:47Z\"}}";
+    void validSignatureReturns200AndDispatchesEvent() throws Exception {
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String body = """
+                {
+                  "event": "production.confirmed",
+                  "orderUid": "or_abc123",
+                  "status": "CONFIRMED",
+                  "confirmedAt": "2026-04-06T01:10:47Z"
+                }
+                """;
         String signature = "sha256=" + hmacSha256Hex("test-webhook-secret", timestamp + "." + body);
 
         mockMvc.perform(post("/api/webhooks/sweetbook/orders")
@@ -50,16 +59,16 @@ class SweetbookWebhookControllerTest {
         verify(orderService).applyWebhookStatusUpdateByEvent(
                 org.mockito.ArgumentMatchers.eq("or_abc123"),
                 org.mockito.ArgumentMatchers.eq("production.confirmed"),
-                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("CONFIRMED"),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq("wh_abc123")
         );
     }
 
     @Test
-    void 서명이_유효하지_않으면_401을_반환한다() throws Exception {
-        String timestamp = "1709280000";
-        String body = "{\"data\":{\"orderUid\":\"or_abc123\",\"orderStatus\":30}}";
+    void invalidSignatureReturns401() throws Exception {
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String body = "{\"event\":\"production.confirmed\",\"orderUid\":\"or_abc123\",\"status\":\"CONFIRMED\"}";
 
         mockMvc.perform(post("/api/webhooks/sweetbook/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,3 +101,4 @@ class SweetbookWebhookControllerTest {
         return sb.toString();
     }
 }
+
