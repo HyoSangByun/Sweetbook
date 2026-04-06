@@ -9,6 +9,11 @@ import com.sweetbook.server.album.dto.SelectAlbumActivitiesResponse;
 import com.sweetbook.server.album.dto.UpdateAlbumRequest;
 import com.sweetbook.server.album.service.AlbumService;
 import com.sweetbook.server.common.response.ApiResponse;
+import com.sweetbook.server.order.dto.CreateOrderApiRequest;
+import com.sweetbook.server.order.dto.CreateOrderApiResponse;
+import com.sweetbook.server.order.dto.OrderDetailResponse;
+import com.sweetbook.server.order.dto.OrderSummaryResponse;
+import com.sweetbook.server.order.service.OrderService;
 import com.sweetbook.server.photo.dto.ActivityPhotoDeleteResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoItemResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
@@ -40,6 +45,7 @@ public class AlbumController {
     private final AlbumService albumService;
     private final ActivityPhotoService activityPhotoService;
     private final AlbumBookGenerationService albumBookGenerationService;
+    private final OrderService orderService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<AlbumResponse>> createAlbum(
@@ -130,6 +136,38 @@ public class AlbumController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 albumBookGenerationService.generateBook(principal.getUserId(), albumId)
+        ));
+    }
+
+    @PostMapping("/{albumId}/orders")
+    public ResponseEntity<ApiResponse<CreateOrderApiResponse>> createOrder(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @Valid @RequestBody CreateOrderApiRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                orderService.createOrder(principal.getUserId(), albumId, request)
+        ));
+    }
+
+    @GetMapping("/{albumId}/orders")
+    public ResponseEntity<ApiResponse<List<OrderSummaryResponse>>> listOrders(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                orderService.listOrders(principal.getUserId(), albumId)
+        ));
+    }
+
+    @GetMapping("/{albumId}/orders/{orderId}")
+    public ResponseEntity<ApiResponse<OrderDetailResponse>> getOrder(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @PathVariable Long orderId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                orderService.getOrder(principal.getUserId(), albumId, orderId)
         ));
     }
 }
