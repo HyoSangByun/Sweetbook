@@ -22,9 +22,5 @@ export const getMonthlyStats = (month: string) =>
 export const importCsv = (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
-  return client.post<ActivityImportResponse>('/activities/import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  return client.post<ActivityImportResponse>('/activities/import', formData);
 };

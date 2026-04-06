@@ -20,17 +20,31 @@ client.interceptors.request.use((config) => {
 // Response Interceptor: Unwrap data or handle error
 client.interceptors.response.use(
   (response) => {
-    const apiResponse = response.data as ApiResponse<any>;
-    if (apiResponse.success) {
-      return apiResponse.data;
+    const data = response.data;
+    if (data && typeof data === 'object' && 'success' in data) {
+      const apiResponse = data as ApiResponse<any>;
+      if (apiResponse.success) {
+        return apiResponse.data;
+      }
+      return Promise.reject(apiResponse.error || {
+        code: 'UNKNOWN_ERROR',
+        message: 'Request failed with success=false but no error provided'
+      });
     }
-    return Promise.reject(apiResponse.error);
+    
+    return Promise.reject({
+      code: 'MALFORMED_RESPONSE',
+      message: 'Server returned an invalid response envelope'
+    });
   },
   (error) => {
     if (error.response?.data) {
-      const apiResponse = error.response.data as ApiResponse<any>;
-      if (apiResponse.error) {
-        return Promise.reject(apiResponse.error);
+      const data = error.response.data;
+      if (data && typeof data === 'object' && 'error' in data) {
+        const apiResponse = data as ApiResponse<any>;
+        if (apiResponse.error) {
+          return Promise.reject(apiResponse.error);
+        }
       }
     }
     
@@ -38,7 +52,10 @@ client.interceptors.response.use(
     return Promise.reject({
       code: 'NETWORK_ERROR',
       message: error.message || 'Network error occurred',
-      details: error
+      details: {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+      }
     });
   }
 );
