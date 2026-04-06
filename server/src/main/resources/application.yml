@@ -9,11 +9,14 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
     show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   h2:
     console:
       enabled: true
@@ -33,6 +36,8 @@ app:
     base-url: ${SWEETBOOK_API_BASE_URL:https://api-sandbox.sweetbook.com}
     api-key: ${SWEETBOOK_SANDBOX_API_KEY}
     book-spec-uid: ${SWEETBOOK_BOOK_SPEC_UID}
+    webhook-secret: ${SWEETBOOK_WEBHOOK_SECRET:}
+    webhook-timestamp-tolerance: ${SWEETBOOK_WEBHOOK_TIMESTAMP_TOLERANCE:5m}
     connect-timeout: ${SWEETBOOK_CONNECT_TIMEOUT:3s}
     read-timeout: ${SWEETBOOK_READ_TIMEOUT:10s}
   photo:

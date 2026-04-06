@@ -1,17 +1,10 @@
 package com.sweetbook.server.sweetbook.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
-import com.sweetbook.server.sweetbook.dto.orders.CreateOrderRequest;
 import com.sweetbook.server.sweetbook.dto.orders.CreateOrderResponseData;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -23,20 +16,16 @@ import org.springframework.web.client.RestClientException;
 @RequiredArgsConstructor
 public class SweetbookOrdersClient {
 
-    private static final ObjectMapper CANONICAL_OBJECT_MAPPER = new ObjectMapper()
-            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
-
     private final RestClient sweetbookRestClient;
 
-    public String createOrder(CreateOrderRequest request) {
+    public String createOrder(Map<String, Object> payload, String idempotencyKey) {
         SweetbookApiResponse<CreateOrderResponseData> response;
-        String idempotencyKey = createIdempotencyKey(request);
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/orders")
                     .header("Idempotency-Key", idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(request.payload())
+                    .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
@@ -52,19 +41,47 @@ public class SweetbookOrdersClient {
         return response.data().orderUid();
     }
 
-    private String createIdempotencyKey(CreateOrderRequest request) {
+    public Map<String, Object> cancelOrder(String orderUid, String cancelReason) {
+        SweetbookApiResponse<Map<String, Object>> response;
         try {
-            String payloadJson = CANONICAL_OBJECT_MAPPER.writeValueAsString(request.payload());
-            byte[] hash = MessageDigest.getInstance("SHA-256")
-                    .digest(payloadJson.getBytes(StandardCharsets.UTF_8));
-            return "order-" + HexFormat.of().formatHex(hash);
-        } catch (JsonProcessingException | NoSuchAlgorithmException e) {
-            BusinessException be = new BusinessException(
-                    ErrorCode.SWEETBOOK_CALL_FAILED,
-                    "Failed to create order idempotency key."
-            );
+            response = sweetbookRestClient.post()
+                    .uri("/v1/orders/{orderUid}/cancel", orderUid)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("cancelReason", cancelReason))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to cancel order.");
             be.initCause(e);
             throw be;
         }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to cancel order.");
+        }
+        return response.data();
+    }
+
+    public Map<String, Object> updateShipping(String orderUid, Map<String, Object> shippingPatch) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.patch()
+                    .uri("/v1/orders/{orderUid}/shipping", orderUid)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(shippingPatch)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to update order shipping.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to update order shipping.");
+        }
+        return response.data();
     }
 }
