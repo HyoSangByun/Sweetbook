@@ -1,4 +1,4 @@
-export type OrderStatus = 'CREATED' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
+export type OrderStatus = 'REQUESTED' | 'CREATED' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
 
 export interface OrderItem {
   bookUid: string;
@@ -13,28 +13,30 @@ export interface ShippingInfo {
   addressDetail: string;
 }
 
-export interface CreateOrderRequest {
+export interface OrderPayload {
   items: OrderItem[];
   shipping: ShippingInfo;
   externalRef: string;
   externalUserId: string;
 }
 
+export type CreateOrderRequest = OrderPayload;
+
 export interface OrderSummaryResponse {
   orderId: number;
   orderUid: string;
   externalRef: string;
   status: OrderStatus;
-  remoteOrderStatusCode: string;
+  remoteOrderStatusCode: number;
   remoteOrderStatusDisplay: string;
   remoteOrderedAt: string | null;
+  lastErrorMessage: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface OrderDetailResponse extends OrderSummaryResponse {
-  shipping: ShippingInfo;
-  items: OrderItem[];
-  lastErrorMessage: string | null;
+  payload: OrderPayload;
 }
 
 export interface UpdateShippingRequest {

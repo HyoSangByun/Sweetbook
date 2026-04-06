@@ -24,8 +24,15 @@ export const usePhotoStore = defineStore('photo', () => {
   };
 
   const deletePhoto = async (albumId: number, activityId: number, photoId: number) => {
-    await photoApi.deletePhoto(albumId, activityId, photoId);
-    await fetchPhotos(albumId, activityId);
+    if (isLoading.value) return;
+
+    isLoading.value = true;
+    try {
+      await photoApi.deletePhoto(albumId, activityId, photoId);
+      await fetchPhotos(albumId, activityId);
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   return {

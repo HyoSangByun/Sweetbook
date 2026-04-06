@@ -10,7 +10,7 @@
       </div>
     </header>
 
-    <main class="container" v-if="albumStore.currentAlbum">
+    <main class="container" v-if="albumStore.currentAlbum && !fetchError">
       <!-- Album Info Header -->
       <section class="album-info-section">
         <div class="album-info-header">
@@ -67,7 +67,13 @@
               />
             </div>
 
-            <button @click="handleDeselect(activity.activityId)" class="btn-deselect">해제</button>
+            <button
+              @click="handleDeselect(activity.activityId)"
+              class="btn-deselect"
+              :disabled="deselectLoadingByActivity[activity.activityId]"
+            >
+              {{ deselectLoadingByActivity[activity.activityId] ? '처리 중...' : '해제' }}
+            </button>
           </div>
         </div>
       </section>
@@ -83,6 +89,11 @@
         </div>
       </section>
     </main>
+
+    <div v-else-if="fetchError" class="error-state">
+      <p class="error-message">{{ fetchError }}</p>
+      <button @click="loadAlbumData" class="btn-retry">다시 시도</button>
+    </div>
 
     <div v-else-if="albumStore.isLoading" class="loading-state">
       앨범 정보를 불러오는 중...
@@ -109,11 +120,21 @@ const albumStore = useAlbumStore();
 const photoStore = usePhotoStore();
 
 const isEditingInfo = ref(false);
+const fetchError = ref<string | null>(null);
 const fileInputRefs = ref<Record<number, HTMLInputElement | null>>({});
+const deselectLoadingByActivity = ref<Record<number, boolean>>({});
+const deselectError = ref<string | null>(null);
 
 onMounted(async () => {
+  await loadAlbumData();
+});
+
+const loadAlbumData = async () => {
   const albumId = Number(route.params.id);
-  if (albumId) {
+  if (!albumId) return;
+
+  fetchError.value = null;
+  try {
     await albumStore.fetchAlbum(albumId);
     if (albumStore.currentAlbum) {
       // Fetch photos for each activity
@@ -121,8 +142,10 @@ onMounted(async () => {
         await photoStore.fetchPhotos(albumId, activity.activityId);
       }
     }
+  } catch (err: any) {
+    fetchError.value = err.message || '앨범 정보를 불러오는 데 실패했습니다.';
   }
-});
+};
 
 const setFileInputRef = (el: any, activityId: number) => {
   if (el) fileInputRefs.value[activityId] = el as HTMLInputElement;
@@ -153,6 +176,32 @@ const handleDeletePhoto = async (activityId: number, photoId: number) => {
     } catch (err: any) {
       alert('삭제 실패: ' + (err.message || '알 수 없는 에러'));
     }
+  }
+};
+
+const handleDeselect = async (activityId: number) => {
+  if (!albumStore.currentAlbum) return;
+  if (deselectLoadingByActivity.value[activityId]) return;
+
+  const albumId = albumStore.currentAlbum.albumId;
+  deselectError.value = null;
+  deselectLoadingByActivity.value[activityId] = true;
+
+  try {
+    const res = await albumStore.deselectActivity(albumId, activityId);
+
+    if (albumStore.currentAlbum) {
+      albumStore.currentAlbum.selectedActivities = albumStore.currentAlbum.selectedActivities.filter(
+        (activity) => activity.activityId !== activityId,
+      );
+      albumStore.currentAlbum.selectedActivityCount = res.selectedActivityCount;
+    }
+  } catch (err: any) {
+    deselectError.value = err?.message || '활동 해제 중 오류가 발생했습니다.';
+    console.error('Failed to deselect activity:', err);
+    alert(deselectError.value);
+  } finally {
+    deselectLoadingByActivity.value[activityId] = false;
   }
 };
 
