@@ -46,14 +46,32 @@
         <div v-else-if="activityStore.activities.length === 0" class="empty-state">
           이달의 활동이 없습니다. CSV 파일을 임포트해보세요.
         </div>
-        <div v-else class="activity-grid">
-          <div v-for="activity in activityStore.activities" :key="activity.activityId" class="activity-card">
-            <div class="activity-type">{{ activity.activityType }}</div>
-            <h3 class="activity-name">{{ activity.activityName }}</h3>
-            <div class="activity-meta">
-              <span>{{ formatDate(activity.activityDateTime) }}</span>
-              <span>{{ activity.distanceKm.toFixed(2) }}km</span>
-              <span>{{ formatDuration(activity.movingTimeSeconds) }}</span>
+        <div v-else class="activity-grid-container">
+          <div class="selection-banner" v-if="selectedActivityIds.length > 0">
+            <span>{{ selectedActivityIds.length }}개의 활동 선택됨</span>
+            <button @click="handleCreateAlbum" class="btn-create-album" :disabled="albumStore.isLoading">
+              {{ albumStore.isLoading ? '생성 중...' : '이 활동들로 앨범 만들기' }}
+            </button>
+          </div>
+          
+          <div class="activity-grid">
+            <div 
+              v-for="activity in activityStore.activities" 
+              :key="activity.activityId" 
+              class="activity-card"
+              :class="{ 'is-selected': selectedActivityIds.includes(activity.activityId) }"
+              @click="toggleSelection(activity.activityId)"
+            >
+              <div class="card-selection-indicator">
+                <div class="checkbox" :class="{ 'checked': selectedActivityIds.includes(activity.activityId) }"></div>
+              </div>
+              <div class="activity-type">{{ activity.activityType }}</div>
+              <h3 class="activity-name">{{ activity.activityName }}</h3>
+              <div class="activity-meta">
+                <span>{{ formatDate(activity.activityDateTime) }}</span>
+                <span>{{ activity.distanceKm.toFixed(2) }}km</span>
+                <span>{{ formatDuration(activity.movingTimeSeconds) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -67,12 +85,15 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../auth/store';
 import { useActivityStore } from '../store';
+import { useAlbumStore } from '../../album/store';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const activityStore = useActivityStore();
+const albumStore = useAlbumStore();
 
 const selectedMonth = ref('');
+const selectedActivityIds = ref<number[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 
 onMounted(async () => {
@@ -84,10 +105,38 @@ onMounted(async () => {
 });
 
 const loadActivityData = async (month: string) => {
+  selectedActivityIds.value = []; // Reset selection when month changes
   await Promise.all([
     activityStore.fetchActivities(month),
     activityStore.fetchStats(month),
   ]);
+};
+
+const toggleSelection = (id: number) => {
+  const index = selectedActivityIds.value.indexOf(id);
+  if (index > -1) {
+    selectedActivityIds.value.splice(index, 1);
+  } else {
+    selectedActivityIds.value.push(id);
+  }
+};
+
+const handleCreateAlbum = async () => {
+  if (selectedActivityIds.value.length === 0) return;
+  
+  try {
+    const album = await albumStore.createAlbum({
+      month: selectedMonth.value,
+      title: `${selectedMonth.value} 활동 기록`,
+    });
+    
+    // Add selected activities to the newly created album
+    await albumStore.selectActivities(album.albumId, selectedActivityIds.value);
+    
+    router.push({ name: 'album-detail', params: { id: album.albumId } });
+  } catch (err: any) {
+    alert('앨범 생성 실패: ' + (err.message || '알 수 없는 에러'));
+  }
 };
 
 const handleMonthChange = async () => {
@@ -243,12 +292,74 @@ const formatDuration = (seconds: number) => {
   gap: 24px;
 }
 
+.activity-grid-container {
+  position: relative;
+}
+
+.selection-banner {
+  position: sticky;
+  top: 20px;
+  z-index: 10;
+  background-color: var(--color-near-black);
+  color: var(--color-white);
+  padding: 16px 24px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  box-shadow: rgba(0, 0, 0, 0.2) 0px 8px 24px;
+}
+
+.btn-create-album {
+  background-color: var(--color-terracotta);
+  color: var(--color-white);
+  padding: 8px 16px;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
 .activity-card {
   background-color: var(--color-white);
   padding: 24px;
   border-radius: 12px;
   border: 1px solid var(--color-border-cream);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.activity-card.is-selected {
+  border-color: var(--color-terracotta);
+  background-color: var(--color-ivory);
+}
+
+.card-selection-indicator {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border-warm);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.checkbox.checked {
+  background-color: var(--color-terracotta);
+  border-color: var(--color-terracotta);
+}
+
+.checkbox.checked::after {
+  content: '✓';
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
 }
 
 .activity-card:hover {
