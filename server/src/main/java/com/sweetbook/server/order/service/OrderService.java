@@ -95,7 +95,7 @@ public class OrderService {
             Order order = getOwnedOrder(userId, albumId, orderId);
             validateCancelable(order);
             if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 취소할 수 없습니다.");
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 주문을 취소할 수 없습니다.");
             }
 
             Map<String, Object> response = sweetbookOrdersClient.cancelOrder(order.getOrderUid(), request.cancelReason());
@@ -116,7 +116,7 @@ public class OrderService {
             Order order = getOwnedOrder(userId, albumId, orderId);
             validateShippingUpdatable(order);
             if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 배송지 변경을 할 수 없습니다.");
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 배송지를 변경할 수 없습니다.");
             }
 
             Map<String, Object> response = sweetbookOrdersClient.updateShipping(order.getOrderUid(), patch);
@@ -562,11 +562,16 @@ public class OrderService {
         if (event == null && status == null) {
             return null;
         }
-        String normalizedEvent = event == null ? "" : event.trim();
+        String normalizedEvent = event == null ? "" : event.trim().toLowerCase();
         String normalizedStatus = status == null ? "" : status.trim().toUpperCase();
 
-        if ("order.created".equals(normalizedEvent) || "order.restored".equals(normalizedEvent) || "PAID".equals(normalizedStatus)) {
+        if ("order.created".equals(normalizedEvent)
+                || "order.restored".equals(normalizedEvent)
+                || "PAID".equals(normalizedStatus)) {
             return new WebhookMappedStatus(20, "PAID");
+        }
+        if ("PDF_READY".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(25, "PDF_READY");
         }
         if ("production.confirmed".equals(normalizedEvent) || "CONFIRMED".equals(normalizedStatus)) {
             return new WebhookMappedStatus(30, "CONFIRMED");
@@ -585,6 +590,12 @@ public class OrderService {
         }
         if ("order.cancelled".equals(normalizedEvent) || "CANCELLED".equals(normalizedStatus)) {
             return new WebhookMappedStatus(80, "CANCELLED");
+        }
+        if ("CANCELLED_REFUND".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(81, "CANCELLED_REFUND");
+        }
+        if ("ERROR".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(90, "ERROR");
         }
         return null;
     }

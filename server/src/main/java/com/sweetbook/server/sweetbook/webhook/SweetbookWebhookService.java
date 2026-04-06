@@ -49,7 +49,7 @@ public class SweetbookWebhookService {
             }
 
             String payloadEvent = getString(eventPayload, "event");
-            String resolvedEventType = (eventType != null && !eventType.isBlank()) ? eventType : payloadEvent;
+            String resolvedEventType = (payloadEvent != null && !payloadEvent.isBlank()) ? payloadEvent : eventType;
             String status = getString(eventPayload, "status");
             LocalDateTime eventAt = extractEventTime(eventPayload);
 
@@ -124,7 +124,15 @@ public class SweetbookWebhookService {
                         .toList();
             }
             if (parsed instanceof Map<?, ?> map) {
-                return List.of(extractData((Map<String, Object>) map));
+                Map<String, Object> extracted = extractData((Map<String, Object>) map);
+                Object nestedEvents = extracted.get("events");
+                if (nestedEvents instanceof List<?> nestedList) {
+                    return nestedList.stream()
+                            .filter(Map.class::isInstance)
+                            .map(item -> (Map<String, Object>) item)
+                            .toList();
+                }
+                return List.of(extracted);
             }
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid webhook body.");
         } catch (Exception e) {
@@ -135,6 +143,16 @@ public class SweetbookWebhookService {
     @SuppressWarnings("unchecked")
     private Map<String, Object> extractData(Map<String, Object> root) {
         Object data = root.get("data");
+        if (data instanceof List<?> list) {
+            if (list.isEmpty()) {
+                return root;
+            }
+            Object first = list.get(0);
+            if (first instanceof Map<?, ?> firstMap) {
+                return (Map<String, Object>) firstMap;
+            }
+            return root;
+        }
         if (data instanceof Map<?, ?> mapData) {
             return (Map<String, Object>) mapData;
         }
