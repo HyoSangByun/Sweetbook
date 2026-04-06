@@ -29,9 +29,9 @@
   --color-ring-warm: #d1cfc5;
 
   /* Typography */
-  --font-serif: "Anthropic Serif", Georgia, serif;
-  --font-sans: "Anthropic Sans", system-ui, Arial, sans-serif;
-  --font-mono: "Anthropic Mono", monospace;
+  --font-serif: georgia, serif;
+  --font-sans: system-ui, arial, sans-serif;
+  --font-mono: ui-monospace, consolas, monospace;
 
   --spacing-base: 8px;
 }

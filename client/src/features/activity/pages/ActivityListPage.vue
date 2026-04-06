@@ -106,12 +106,14 @@ const handleImport = async (event: Event) => {
     try {
       await activityStore.importActivities(target.files[0]);
       alert('임포트가 완료되었습니다.');
-      if (activityStore.months.length > 0) {
-         selectedMonth.value = activityStore.months[0];
-         await loadActivityData(selectedMonth.value);
+      // Update selectedMonth if it was empty, store already handles the fetch
+      if (!selectedMonth.value && activityStore.months.length > 0) {
+        selectedMonth.value = activityStore.months[0];
       }
     } catch (err: any) {
       alert('임포트 실패: ' + (err.message || '알 수 없는 에러'));
+    } finally {
+      target.value = ''; // Reset file input so the same file can be reselected
     }
   }
 };
