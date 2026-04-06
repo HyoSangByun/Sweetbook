@@ -11,8 +11,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -61,14 +61,12 @@ public class ActivityCsvImportService {
         int skippedCount = 0;
         List<ActivityImportResponse.SkippedRow> skippedRows = new ArrayList<>();
 
-        try (
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)
-                )
-        ) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)
+        )) {
             String headerLine = reader.readLine();
             if (headerLine == null || headerLine.isBlank()) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 헤더가 없습니다.");
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 헤더가 비어 있습니다.");
             }
 
             List<String> rawHeaders = parseCsvLine(headerLine);
@@ -95,6 +93,8 @@ public class ActivityCsvImportService {
                         ));
                         continue;
                     }
+
+                    // 중복 방지 키: user_id + external_activity_id
                     if (activityRepository.existsByUserIdAndExternalActivityId(userId, externalActivityId)) {
                         skippedCount++;
                         skippedRows.add(new ActivityImportResponse.SkippedRow(rowNumber, "이미 적재된 Activity ID 입니다."));
@@ -261,10 +261,10 @@ public class ActivityCsvImportService {
         }
 
         if (normalized.contains(",") && normalized.contains(".")) {
-            // 1,234.56 형태는 쉼표를 천 단위 구분자로 본다.
+            // 1,234.56 형태는 콤마를 천 단위 구분자로 처리.
             normalized = normalized.replace(",", "");
         } else if (normalized.contains(",")) {
-            // 12,34 형태는 쉼표를 소수점으로 본다.
+            // 12,34 형태는 콤마를 소수점으로 처리.
             normalized = normalized.replace(",", ".");
         }
 
