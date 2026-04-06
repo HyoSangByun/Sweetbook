@@ -55,7 +55,7 @@ class OrderModificationServiceTest {
     }
 
     @Test
-    void 취소_API_성공시_상태가_CANCELLED로_변경된다() {
+    void 주문_취소_API_성공시_상태가_cancelled로_변경된다() {
         User user = userRepository.save(newUser("cancel@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_cancel_001"));
         Order order = orderRepository.save(newOrder(album, "or_cancel_001", 20));
@@ -75,7 +75,7 @@ class OrderModificationServiceTest {
     }
 
     @Test
-    void 취소_불가_상태면_예외가_발생한다() {
+    void 주문_취소_불가_상태이면_예외가_발생한다() {
         User user = userRepository.save(newUser("cancel-block@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_cancel_002"));
         Order order = orderRepository.save(newOrder(album, "or_cancel_002", 30));
@@ -102,7 +102,7 @@ class OrderModificationServiceTest {
                 album.getId(),
                 order.getId(),
                 new UpdateOrderShippingRequest(
-                        "김영희",
+                        "김상식",
                         null,
                         null,
                         "서울시 서초구 반포대로 100",
@@ -116,7 +116,7 @@ class OrderModificationServiceTest {
         assertThat(shippingRaw).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> shipping = (Map<String, Object>) shippingRaw;
-        assertThat(shipping.get("recipientName")).isEqualTo("김영희");
+        assertThat(shipping.get("recipientName")).isEqualTo("김상식");
         assertThat(shipping.get("address1")).isEqualTo("서울시 서초구 반포대로 100");
     }
 
@@ -154,4 +154,3 @@ class OrderModificationServiceTest {
         return album;
     }
 }
-
