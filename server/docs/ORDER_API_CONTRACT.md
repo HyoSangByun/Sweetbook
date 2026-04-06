@@ -42,14 +42,47 @@
 
 - Response `data`:
   - `orderId`
-  - `orderUid` (원격 주문 생성 전/실패 시 null 가능)
+  - `orderUid`
   - `externalRef`
   - `status` (`REQUESTED`, `CREATED`, `COMPLETED`, `CANCELLED`, `FAILED`)
   - `lastErrorMessage`
-  - `remoteOrderStatusCode` (웹훅 동기화 전에는 null)
-  - `remoteOrderStatusDisplay` (웹훅 동기화 전에는 null)
-  - `remoteOrderedAt` (웹훅 동기화 전에는 null)
+  - `remoteOrderStatusCode`
+  - `remoteOrderStatusDisplay`
+  - `remoteOrderedAt`
   - `createdAt`
+
+## 주문 취소
+
+- `POST /api/albums/{albumId}/orders/{orderId}/cancel`
+- Request JSON:
+
+```json
+{
+  "cancelReason": "고객 요청"
+}
+```
+
+- 취소 가능 조건:
+  - 원격 상태코드 `PAID(20)` 또는 `PDF_READY(25)`
+- Response `data`:
+  - 주문 상세 조회 응답과 동일
+
+## 배송지 변경
+
+- `PATCH /api/albums/{albumId}/orders/{orderId}/shipping`
+- Request JSON (변경할 필드만 전달):
+
+```json
+{
+  "recipientName": "김영희",
+  "address1": "서울시 서초구 반포대로 100"
+}
+```
+
+- 변경 가능 조건:
+  - 원격 상태코드 `PAID(20)`, `PDF_READY(25)`, `CONFIRMED(30)`
+- Response `data`:
+  - 주문 상세 조회 응답과 동일
 
 ## 주문 목록 조회
 
@@ -78,7 +111,7 @@
   - `remoteOrderStatusCode`
   - `remoteOrderStatusDisplay`
   - `remoteOrderedAt`
-  - `payload` (백엔드 저장 요청 페이로드)
+  - `payload`
   - `createdAt`
   - `updatedAt`
 
@@ -88,25 +121,35 @@
 - 인증: JWT 없이 접근 허용, 서명 검증 필수
 - 필수 헤더:
   - `X-Webhook-Signature`
-  - `X-Webhook-Timestamp`
+  - `X-Webhook-Timestamp` (epoch seconds)
   - `X-Webhook-Event`
   - `X-Webhook-Delivery`
 - 서명 검증:
   - 검증 문자열: `{timestamp}.{rawBody}`
   - 알고리즘: `HMAC-SHA256`
   - 기대 포맷: `sha256={hex}`
+- timestamp 검증:
+  - 현재 시각과 허용 오차(`app.sweetbook.webhook-timestamp-tolerance`) 이내여야 함
 - 처리 규칙:
   - 같은 `X-Webhook-Delivery`는 중복 처리하지 않음
   - 상태 역전이(낮은 단계 코드)는 무시
-  - 원격 상태코드 매핑:
-    - `20~60` -> `CREATED`
-    - `70` -> `COMPLETED`
-    - `80/81` -> `CANCELLED`
-    - `90` -> `FAILED`
+  - `order.restored`는 `CANCELLED -> CREATED` 복구를 허용
+
+## 원격 상태코드 매핑
+
+- `20` PAID -> `CREATED`
+- `25` PDF_READY -> `CREATED`
+- `30` CONFIRMED -> `CREATED`
+- `40` IN_PRODUCTION -> `CREATED`
+- `50` PRODUCTION_COMPLETE -> `CREATED`
+- `60` SHIPPED -> `CREATED`
+- `70` DELIVERED -> `COMPLETED`
+- `80/81` CANCELLED/CANCELLED_REFUND -> `CANCELLED`
+- `90` ERROR -> `FAILED`
 
 ## 주요 에러 코드(연동 시 참고)
 
-- `AUTH_001`: 인증 필요 (웹훅 서명 오류 포함)
+- `AUTH_001`: 인증 필요 (Webhook 서명/타임스탬프 오류 포함)
 - `AUTH_002`: 권한 없음
 - `ALBUM_001`: 앨범 없음
 - `COMMON_001`: 잘못된 요청
