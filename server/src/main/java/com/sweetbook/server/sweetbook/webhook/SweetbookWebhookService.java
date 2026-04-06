@@ -1,6 +1,7 @@
 package com.sweetbook.server.sweetbook.webhook;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
@@ -11,6 +12,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.crypto.Mac;
@@ -115,48 +117,57 @@ public class SweetbookWebhookService {
 
     private List<Map<String, Object>> parseBodyAsEvents(String rawBody) {
         try {
-            Object parsed = objectMapper.readValue(rawBody, new TypeReference<>() {
-            });
-            if (parsed instanceof List<?> list) {
-                return list.stream()
-                        .filter(Map.class::isInstance)
-                        .map(item -> (Map<String, Object>) item)
-                        .toList();
+            JsonNode root = objectMapper.readTree(rawBody);
+            List<JsonNode> nodes = extractEventNodes(root);
+            if (nodes.isEmpty()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid webhook body.");
             }
-            if (parsed instanceof Map<?, ?> map) {
-                Map<String, Object> extracted = extractData((Map<String, Object>) map);
-                Object nestedEvents = extracted.get("events");
-                if (nestedEvents instanceof List<?> nestedList) {
-                    return nestedList.stream()
-                            .filter(Map.class::isInstance)
-                            .map(item -> (Map<String, Object>) item)
-                            .toList();
-                }
-                return List.of(extracted);
-            }
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid webhook body.");
+            return nodes.stream()
+                    .map(this::toMap)
+                    .toList();
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid webhook body.");
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> extractData(Map<String, Object> root) {
-        Object data = root.get("data");
-        if (data instanceof List<?> list) {
-            if (list.isEmpty()) {
-                return root;
-            }
-            Object first = list.get(0);
-            if (first instanceof Map<?, ?> firstMap) {
-                return (Map<String, Object>) firstMap;
-            }
-            return root;
+    private List<JsonNode> extractEventNodes(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return List.of();
         }
-        if (data instanceof Map<?, ?> mapData) {
-            return (Map<String, Object>) mapData;
+
+        if (node.isArray()) {
+            List<JsonNode> result = new ArrayList<>();
+            node.forEach(item -> {
+                if (item.isObject()) {
+                    result.add(item);
+                }
+            });
+            return result;
         }
-        return root;
+
+        if (!node.isObject()) {
+            return List.of();
+        }
+
+        JsonNode events = node.get("events");
+        if (events != null && events.isArray()) {
+            return extractEventNodes(events);
+        }
+
+        JsonNode data = node.get("data");
+        if (data != null) {
+            List<JsonNode> extracted = extractEventNodes(data);
+            if (!extracted.isEmpty()) {
+                return extracted;
+            }
+        }
+
+        return List.of(node);
+    }
+
+    private Map<String, Object> toMap(JsonNode node) {
+        return objectMapper.convertValue(node, new TypeReference<>() {
+        });
     }
 
     private String getString(Map<String, Object> source, String key) {
