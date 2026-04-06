@@ -131,7 +131,7 @@ class OrderWebhookE2ETest {
                         "홍길동",
                         "010-1234-5678",
                         "06101",
-                        "서울시 강남구 테헤란로 123",
+                        "서울특별시 강남구 테헤란로 123",
                         "4층 401호",
                         "부재시 경비실"
                 ),
@@ -151,4 +151,3 @@ class OrderWebhookE2ETest {
         return sb.toString();
     }
 }
-

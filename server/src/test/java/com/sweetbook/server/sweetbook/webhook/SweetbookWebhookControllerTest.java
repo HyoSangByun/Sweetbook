@@ -2,6 +2,7 @@ package com.sweetbook.server.sweetbook.webhook;
 
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -87,6 +88,52 @@ class SweetbookWebhookControllerTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void arrayPayloadParsesEachEvent() throws Exception {
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String body = """
+                [
+                  {
+                    "event": "order.created",
+                    "orderUid": "or_a1",
+                    "status": "PAID",
+                    "timestamp": "2026-04-06T01:00:00Z"
+                  },
+                  {
+                    "event": "shipping.delivered",
+                    "orderUid": "or_a2",
+                    "status": "DELIVERED",
+                    "timestamp": "2026-04-06T02:00:00Z"
+                  }
+                ]
+                """;
+        String signature = "sha256=" + hmacSha256Hex("test-webhook-secret", timestamp + "." + body);
+
+        mockMvc.perform(post("/api/webhooks/sweetbook/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Webhook-Signature", signature)
+                        .header("X-Webhook-Timestamp", timestamp)
+                        .header("X-Webhook-Event", "order.created")
+                        .header("X-Webhook-Delivery", "wh_arr_001")
+                        .content(body))
+                .andExpect(status().isOk());
+
+        verify(orderService, times(1)).applyWebhookStatusUpdateByEvent(
+                org.mockito.ArgumentMatchers.eq("or_a1"),
+                org.mockito.ArgumentMatchers.eq("order.created"),
+                org.mockito.ArgumentMatchers.eq("PAID"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("wh_arr_001")
+        );
+        verify(orderService, times(1)).applyWebhookStatusUpdateByEvent(
+                org.mockito.ArgumentMatchers.eq("or_a2"),
+                org.mockito.ArgumentMatchers.eq("shipping.delivered"),
+                org.mockito.ArgumentMatchers.eq("DELIVERED"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("wh_arr_001")
         );
     }
 

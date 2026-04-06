@@ -22,6 +22,8 @@ import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
 import com.sweetbook.server.photo.service.ActivityPhotoService;
 import com.sweetbook.server.security.AppUserPrincipal;
 import com.sweetbook.server.sweetbook.service.AlbumBookGenerationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -42,6 +44,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/albums")
+@Tag(name = "Album", description = "앨범, 사진, 책 생성, 주문 API")
 public class AlbumController {
 
     private final AlbumService albumService;
@@ -50,6 +53,7 @@ public class AlbumController {
     private final OrderService orderService;
 
     @PostMapping
+    @Operation(summary = "앨범 생성", description = "선택한 월 기준으로 앨범 초안을 생성합니다.")
     public ResponseEntity<ApiResponse<AlbumResponse>> createAlbum(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @Valid @RequestBody CreateAlbumRequest request
@@ -58,6 +62,7 @@ public class AlbumController {
     }
 
     @GetMapping("/{albumId}")
+    @Operation(summary = "앨범 상세 조회", description = "앨범 정보와 선택된 운동 목록을 조회합니다.")
     public ResponseEntity<ApiResponse<AlbumResponse>> getAlbum(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId
@@ -66,6 +71,7 @@ public class AlbumController {
     }
 
     @PatchMapping("/{albumId}")
+    @Operation(summary = "앨범 수정", description = "제목, 부제, 월간 회고를 수정합니다.")
     public ResponseEntity<ApiResponse<AlbumResponse>> updateAlbum(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -75,6 +81,7 @@ public class AlbumController {
     }
 
     @PostMapping("/{albumId}/activities")
+    @Operation(summary = "앨범 운동 선택", description = "앨범에 포함할 운동 기록을 선택합니다.")
     public ResponseEntity<ApiResponse<SelectAlbumActivitiesResponse>> selectAlbumActivities(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -86,6 +93,7 @@ public class AlbumController {
     }
 
     @DeleteMapping("/{albumId}/activities/{activityId}")
+    @Operation(summary = "앨범 운동 선택 해제", description = "앨범에서 특정 운동 기록 선택을 해제합니다.")
     public ResponseEntity<ApiResponse<DeselectAlbumActivityResponse>> deselectAlbumActivity(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -97,6 +105,7 @@ public class AlbumController {
     }
 
     @PostMapping(value = "/{albumId}/activities/{activityId}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "운동 사진 업로드", description = "선택된 운동 기록에 사진을 업로드합니다.")
     public ResponseEntity<ApiResponse<ActivityPhotoUploadResponse>> uploadActivityPhoto(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -109,6 +118,7 @@ public class AlbumController {
     }
 
     @DeleteMapping("/{albumId}/activities/{activityId}/photos/{photoId}")
+    @Operation(summary = "운동 사진 삭제", description = "선택된 운동 기록의 사진을 삭제합니다.")
     public ResponseEntity<ApiResponse<ActivityPhotoDeleteResponse>> deleteActivityPhoto(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -121,6 +131,7 @@ public class AlbumController {
     }
 
     @GetMapping("/{albumId}/activities/{activityId}/photos")
+    @Operation(summary = "운동 사진 목록 조회", description = "선택된 운동 기록의 사진 목록을 조회합니다.")
     public ResponseEntity<ApiResponse<List<ActivityPhotoItemResponse>>> listActivityPhotos(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -132,6 +143,7 @@ public class AlbumController {
     }
 
     @PostMapping("/{albumId}/book")
+    @Operation(summary = "책 생성", description = "앨범 기준으로 Sweetbook 책을 생성하고 최종 확정합니다.")
     public ResponseEntity<ApiResponse<GenerateBookResponse>> generateBook(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId
@@ -142,6 +154,7 @@ public class AlbumController {
     }
 
     @PostMapping("/{albumId}/orders")
+    @Operation(summary = "주문 생성", description = "생성된 책을 기준으로 주문을 생성합니다.")
     public ResponseEntity<ApiResponse<CreateOrderApiResponse>> createOrder(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -153,6 +166,7 @@ public class AlbumController {
     }
 
     @GetMapping("/{albumId}/orders")
+    @Operation(summary = "주문 목록 조회", description = "앨범에 연결된 주문 목록을 조회합니다.")
     public ResponseEntity<ApiResponse<List<OrderSummaryResponse>>> listOrders(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId
@@ -163,6 +177,7 @@ public class AlbumController {
     }
 
     @GetMapping("/{albumId}/orders/{orderId}")
+    @Operation(summary = "주문 상세 조회", description = "주문 상세 정보를 조회합니다.")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> getOrder(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -174,6 +189,7 @@ public class AlbumController {
     }
 
     @PostMapping("/{albumId}/orders/{orderId}/cancel")
+    @Operation(summary = "주문 취소", description = "주문을 취소합니다.")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> cancelOrder(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
@@ -186,6 +202,7 @@ public class AlbumController {
     }
 
     @PatchMapping("/{albumId}/orders/{orderId}/shipping")
+    @Operation(summary = "주문 배송지 변경", description = "주문 배송지 정보를 변경합니다.")
     public ResponseEntity<ApiResponse<OrderDetailResponse>> updateOrderShipping(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
