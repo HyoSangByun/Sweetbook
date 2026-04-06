@@ -47,13 +47,12 @@ class SweetbookWebhookControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.received").value(true));
 
-        verify(orderService).applyWebhookStatusUpdate(
+        verify(orderService).applyWebhookStatusUpdateByEvent(
                 org.mockito.ArgumentMatchers.eq("or_abc123"),
-                org.mockito.ArgumentMatchers.eq(30),
-                org.mockito.ArgumentMatchers.eq("제작 확정"),
+                org.mockito.ArgumentMatchers.eq("production.confirmed"),
                 org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.eq("wh_abc123"),
-                org.mockito.ArgumentMatchers.eq("production.confirmed")
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("wh_abc123")
         );
     }
 
@@ -73,9 +72,8 @@ class SweetbookWebhookControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("AUTH_001"));
 
-        verify(orderService, never()).applyWebhookStatusUpdate(
+        verify(orderService, never()).applyWebhookStatusUpdateByEvent(
                 org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),

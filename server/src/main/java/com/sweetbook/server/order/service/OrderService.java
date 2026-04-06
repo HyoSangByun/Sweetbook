@@ -106,7 +106,7 @@ public class OrderService {
             }
 
             Integer currentCode = order.getRemoteOrderStatusCode();
-            if (isOutdatedStatus(currentCode, remoteOrderStatusCode)) {
+            if (isOutdatedStatus(currentCode, remoteOrderStatusCode, eventType)) {
                 order.updateWebhookMetadata(deliveryId, eventType, LocalDateTime.now());
                 return;
             }
@@ -114,13 +114,34 @@ public class OrderService {
             if (remoteOrderStatusCode != null) {
                 order.updateRemoteStatus(remoteOrderStatusCode, remoteOrderStatusDisplay, remoteOrderedAt);
                 OrderStatus mapped = mapRemoteToLocalStatus(remoteOrderStatusCode);
-                if (mapped != null && canTransition(order.getStatus(), mapped)) {
-                    applyMappedStatus(order, mapped, remoteOrderStatusCode, remoteOrderStatusDisplay);
+                if (mapped != null && canTransition(order.getStatus(), mapped, eventType)) {
+                    applyMappedStatus(order, mapped, remoteOrderStatusCode, remoteOrderStatusDisplay, eventType);
                 }
             }
 
             order.updateWebhookMetadata(deliveryId, eventType, LocalDateTime.now());
         }));
+    }
+
+    public void applyWebhookStatusUpdateByEvent(
+            String orderUid,
+            String webhookEvent,
+            String status,
+            LocalDateTime eventAt,
+            String deliveryId
+    ) {
+        WebhookMappedStatus mappedStatus = mapWebhookEventStatus(webhookEvent, status);
+        if (mappedStatus == null) {
+            return;
+        }
+        applyWebhookStatusUpdate(
+                orderUid,
+                mappedStatus.code(),
+                mappedStatus.display(),
+                eventAt,
+                deliveryId,
+                webhookEvent
+        );
     }
 
     private OrderPreparation prepareOrder(Long userId, Long albumId, String externalRef, String payloadJson) {
@@ -283,8 +304,11 @@ public class OrderService {
         );
     }
 
-    private boolean isOutdatedStatus(Integer currentCode, Integer incomingCode) {
+    private boolean isOutdatedStatus(Integer currentCode, Integer incomingCode, String eventType) {
         if (currentCode == null || incomingCode == null) {
+            return false;
+        }
+        if ("order.restored".equals(eventType)) {
             return false;
         }
         return statusRank(incomingCode) < statusRank(currentCode);
@@ -322,11 +346,16 @@ public class OrderService {
         };
     }
 
-    private boolean canTransition(OrderStatus current, OrderStatus target) {
+    private boolean canTransition(OrderStatus current, OrderStatus target, String eventType) {
         if (current == target) {
             return true;
         }
         if (current == OrderStatus.COMPLETED || current == OrderStatus.CANCELLED) {
+            if (current == OrderStatus.CANCELLED
+                    && target == OrderStatus.CREATED
+                    && "order.restored".equals(eventType)) {
+                return true;
+            }
             return false;
         }
         if (current == OrderStatus.CREATED && target == OrderStatus.REQUESTED) {
@@ -335,7 +364,7 @@ public class OrderService {
         return true;
     }
 
-    private void applyMappedStatus(Order order, OrderStatus mapped, int remoteCode, String remoteDisplay) {
+    private void applyMappedStatus(Order order, OrderStatus mapped, int remoteCode, String remoteDisplay, String eventType) {
         switch (mapped) {
             case CREATED -> order.markCreated(order.getOrderUid());
             case COMPLETED -> order.markCompleted();
@@ -402,7 +431,40 @@ public class OrderService {
         }
     }
 
+    private WebhookMappedStatus mapWebhookEventStatus(String event, String status) {
+        if (event == null && status == null) {
+            return null;
+        }
+        String normalizedEvent = event == null ? "" : event.trim();
+        String normalizedStatus = status == null ? "" : status.trim().toUpperCase();
+
+        if ("order.created".equals(normalizedEvent) || "order.restored".equals(normalizedEvent) || "PAID".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(20, "PAID");
+        }
+        if ("production.confirmed".equals(normalizedEvent) || "CONFIRMED".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(30, "CONFIRMED");
+        }
+        if ("production.started".equals(normalizedEvent) || "IN_PRODUCTION".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(40, "IN_PRODUCTION");
+        }
+        if ("production.completed".equals(normalizedEvent) || "PRODUCTION_COMPLETE".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(50, "PRODUCTION_COMPLETE");
+        }
+        if ("shipping.departed".equals(normalizedEvent) || "SHIPPED".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(60, "SHIPPED");
+        }
+        if ("shipping.delivered".equals(normalizedEvent) || "DELIVERED".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(70, "DELIVERED");
+        }
+        if ("order.cancelled".equals(normalizedEvent) || "CANCELLED".equals(normalizedStatus)) {
+            return new WebhookMappedStatus(80, "CANCELLED");
+        }
+        return null;
+    }
+
     private record OrderPreparation(Order existingOrder) {
     }
-}
 
+    private record WebhookMappedStatus(int code, String display) {
+    }
+}

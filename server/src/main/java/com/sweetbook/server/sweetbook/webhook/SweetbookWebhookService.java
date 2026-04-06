@@ -9,6 +9,7 @@ import com.sweetbook.server.sweetbook.config.SweetbookProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -33,27 +34,31 @@ public class SweetbookWebhookService {
             String rawBody
     ) {
         verifyWebhookSignature(signature, timestamp, rawBody);
-        Map<String, Object> root = parseBody(rawBody);
-        Map<String, Object> data = extractData(root);
+        List<Map<String, Object>> events = parseBodyAsEvents(rawBody);
+        for (Map<String, Object> eventPayload : events) {
+            String orderUid = getString(eventPayload, "orderUid");
+            if (orderUid == null || orderUid.isBlank()) {
+                log.info(
+                        "Sweetbook webhook ignored: orderUid not found. headerEventType={}, deliveryId={}",
+                        eventType,
+                        deliveryId
+                );
+                continue;
+            }
 
-        String orderUid = getString(data, "orderUid");
-        Integer orderStatus = getInteger(data, "orderStatus");
-        String orderStatusDisplay = getString(data, "orderStatusDisplay");
-        LocalDateTime orderedAt = orderService.parseOrderedAt(getString(data, "orderedAt"));
+            String payloadEvent = getString(eventPayload, "event");
+            String resolvedEventType = (eventType != null && !eventType.isBlank()) ? eventType : payloadEvent;
+            String status = getString(eventPayload, "status");
+            LocalDateTime eventAt = extractEventTime(eventPayload);
 
-        if (orderUid == null || orderUid.isBlank()) {
-            log.info("Sweetbook webhook ignored: orderUid not found. eventType={}, deliveryId={}", eventType, deliveryId);
-            return;
+            orderService.applyWebhookStatusUpdateByEvent(
+                    orderUid,
+                    resolvedEventType,
+                    status,
+                    eventAt,
+                    deliveryId
+            );
         }
-
-        orderService.applyWebhookStatusUpdate(
-                orderUid,
-                orderStatus,
-                orderStatusDisplay,
-                orderedAt,
-                deliveryId,
-                eventType
-        );
     }
 
     private void verifyWebhookSignature(String signature, String timestamp, String rawBody) {
@@ -89,10 +94,20 @@ public class SweetbookWebhookService {
         }
     }
 
-    private Map<String, Object> parseBody(String rawBody) {
+    private List<Map<String, Object>> parseBodyAsEvents(String rawBody) {
         try {
-            return objectMapper.readValue(rawBody, new TypeReference<>() {
+            Object parsed = objectMapper.readValue(rawBody, new TypeReference<>() {
             });
+            if (parsed instanceof List<?> list) {
+                return list.stream()
+                        .filter(Map.class::isInstance)
+                        .map(item -> (Map<String, Object>) item)
+                        .toList();
+            }
+            if (parsed instanceof Map<?, ?> map) {
+                return List.of(extractData((Map<String, Object>) map));
+            }
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid webhook body.");
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid webhook body.");
         }
@@ -115,19 +130,23 @@ public class SweetbookWebhookService {
         return String.valueOf(value);
     }
 
-    private Integer getInteger(Map<String, Object> source, String key) {
-        Object value = source.get(key);
-        if (value == null) {
-            return null;
+    private LocalDateTime extractEventTime(Map<String, Object> payload) {
+        for (String key : List.of(
+                "deliveredAt",
+                "shippedAt",
+                "completedAt",
+                "startedAt",
+                "confirmedAt",
+                "restoredAt",
+                "cancelledAt",
+                "orderedAt",
+                "timestamp"
+        )) {
+            LocalDateTime parsed = orderService.parseOrderedAt(getString(payload, key));
+            if (parsed != null) {
+                return parsed;
+            }
         }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return null;
     }
 }
-
