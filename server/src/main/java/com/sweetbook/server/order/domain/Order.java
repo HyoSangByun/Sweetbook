@@ -33,7 +33,8 @@ import org.hibernate.annotations.UpdateTimestamp;
                 @UniqueConstraint(name = "uk_album_orders_order_uid", columnNames = {"order_uid"})
         },
         indexes = {
-                @Index(name = "idx_album_orders_album_project", columnList = "album_project_id")
+                @Index(name = "idx_album_orders_album_project", columnList = "album_project_id"),
+                @Index(name = "idx_album_project_created_at", columnList = "album_project_id, created_at DESC")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

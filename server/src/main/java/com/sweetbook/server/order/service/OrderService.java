@@ -25,15 +25,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
 
+    private static final int ORDER_REQUEST_PAYLOAD_MAX_LENGTH = 8000;
     private static final ObjectMapper CANONICAL_OBJECT_MAPPER = new ObjectMapper()
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
@@ -48,6 +51,7 @@ public class OrderService {
         String externalRef = resolveExternalRef(albumId, request.externalRef(), payloadJsonForRef);
         payload.put("externalRef", externalRef);
         String payloadJson = toCanonicalJson(payload);
+        validateRequestPayloadLength(payloadJson, albumId, externalRef);
         String idempotencyKey = "order-" + externalRef;
 
         OrderPreparation preparation = prepareOrder(userId, albumId, externalRef, payloadJson);
@@ -138,7 +142,11 @@ public class OrderService {
         template.executeWithoutResult(status -> {
             getOwnedAlbum(userId, albumId);
             orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef)
-                    .ifPresent(order -> order.markFailed(trimError(errorMessage)));
+                    .ifPresent(order -> {
+                        if (order.getStatus() != OrderStatus.CREATED) {
+                            order.markFailed(trimError(errorMessage));
+                        }
+                    });
         });
     }
 
@@ -219,6 +227,23 @@ public class OrderService {
             return null;
         }
         return errorMessage.length() <= 500 ? errorMessage : errorMessage.substring(0, 500);
+    }
+
+    private void validateRequestPayloadLength(String payloadJson, Long albumId, String externalRef) {
+        if (payloadJson.length() <= ORDER_REQUEST_PAYLOAD_MAX_LENGTH) {
+            return;
+        }
+        log.warn(
+                "Order request payload too large. albumId={}, externalRef={}, payloadLength={}, maxLength={}",
+                albumId,
+                externalRef,
+                payloadJson.length(),
+                ORDER_REQUEST_PAYLOAD_MAX_LENGTH
+        );
+        throw new BusinessException(
+                ErrorCode.INVALID_INPUT,
+                "주문 요청 payload 길이는 8000자를 초과할 수 없습니다."
+        );
     }
 
     private CreateOrderApiResponse toCreateResponse(Order order) {

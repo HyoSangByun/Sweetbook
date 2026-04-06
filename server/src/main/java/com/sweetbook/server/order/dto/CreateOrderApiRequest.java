@@ -11,42 +11,42 @@ import java.util.List;
 import java.util.Map;
 
 public record CreateOrderApiRequest(
-        @NotEmpty(message = "items는 최소 1개 이상이어야 합니다.")
-        List<@Valid Item> items,
-        @NotNull(message = "shipping은 필수입니다.")
+        @NotEmpty(message = "items??理쒖냼 1媛??댁긽?댁뼱???⑸땲??")
+        List<@Valid @NotNull Item> items,
+        @NotNull(message = "shipping? ?꾩닔?낅땲??")
         @Valid Shipping shipping,
-        @Size(max = 100, message = "externalRef는 최대 100자입니다.")
+        @Size(max = 100, message = "externalRef??理쒕? 100?먯엯?덈떎.")
         String externalRef,
-        @Size(max = 100, message = "externalUserId는 최대 100자입니다.")
+        @Size(max = 100, message = "externalUserId??理쒕? 100?먯엯?덈떎.")
         String externalUserId
 ) {
 
     public record Item(
-            @NotBlank(message = "bookUid는 필수입니다.")
+            @NotBlank(message = "bookUid???꾩닔?낅땲??")
             String bookUid,
-            @NotNull(message = "quantity는 필수입니다.")
-            @Min(value = 1, message = "quantity는 1 이상이어야 합니다.")
-            @Max(value = 100, message = "quantity는 100 이하여야 합니다.")
+            @NotNull(message = "quantity???꾩닔?낅땲??")
+            @Min(value = 1, message = "quantity??1 ?댁긽?댁뼱???⑸땲??")
+            @Max(value = 100, message = "quantity??100 ?댄븯?ъ빞 ?⑸땲??")
             Integer quantity
     ) {
     }
 
     public record Shipping(
-            @NotBlank(message = "recipientName은 필수입니다.")
-            @Size(max = 100, message = "recipientName은 최대 100자입니다.")
+            @NotBlank(message = "recipientName? ?꾩닔?낅땲??")
+            @Size(max = 100, message = "recipientName? 理쒕? 100?먯엯?덈떎.")
             String recipientName,
-            @NotBlank(message = "recipientPhone은 필수입니다.")
-            @Size(max = 20, message = "recipientPhone은 최대 20자입니다.")
+            @NotBlank(message = "recipientPhone? ?꾩닔?낅땲??")
+            @Size(max = 20, message = "recipientPhone? 理쒕? 20?먯엯?덈떎.")
             String recipientPhone,
-            @NotBlank(message = "postalCode는 필수입니다.")
-            @Size(max = 10, message = "postalCode는 최대 10자입니다.")
+            @NotBlank(message = "postalCode???꾩닔?낅땲??")
+            @Size(max = 10, message = "postalCode??理쒕? 10?먯엯?덈떎.")
             String postalCode,
-            @NotBlank(message = "address1은 필수입니다.")
-            @Size(max = 200, message = "address1은 최대 200자입니다.")
+            @NotBlank(message = "address1? ?꾩닔?낅땲??")
+            @Size(max = 200, message = "address1? 理쒕? 200?먯엯?덈떎.")
             String address1,
-            @Size(max = 200, message = "address2는 최대 200자입니다.")
+            @Size(max = 200, message = "address2??理쒕? 200?먯엯?덈떎.")
             String address2,
-            @Size(max = 200, message = "memo는 최대 200자입니다.")
+            @Size(max = 200, message = "memo??理쒕? 200?먯엯?덈떎.")
             String memo
     ) {
         public Map<String, Object> toMap() {
@@ -61,3 +61,4 @@ public record CreateOrderApiRequest(
         }
     }
 }
+
