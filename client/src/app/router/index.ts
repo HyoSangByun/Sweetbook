@@ -29,7 +29,11 @@ router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
   
   if (!authStore.isInitialised) {
-    await authStore.bootstrap();
+    try {
+      await authStore.bootstrap();
+    } catch (err) {
+      console.error('Failed to initialise auth store:', err);
+    }
   }
 
   const isAuthenticated = !!authStore.token;

@@ -57,6 +57,7 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 
 const handleLogin = async () => {
+  if (isLoading.value) return;
   isLoading.value = true;
   error.value = null;
   try {
