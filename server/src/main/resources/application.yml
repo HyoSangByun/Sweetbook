@@ -29,6 +29,12 @@ app:
   jwt:
     secret: ${JWT_SECRET:please-change-this-secret-key-to-at-least-32-bytes}
     access-token-expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION_SECONDS:3600}
+  sweetbook:
+    base-url: ${SWEETBOOK_API_BASE_URL:https://api-sandbox.sweetbook.com}
+    api-key: ${SWEETBOOK_SANDBOX_API_KEY}
+    book-spec-uid: ${SWEETBOOK_BOOK_SPEC_UID}
+    connect-timeout: ${SWEETBOOK_CONNECT_TIMEOUT:3s}
+    read-timeout: ${SWEETBOOK_READ_TIMEOUT:10s}
   photo:
     storage-dir: ${PHOTO_STORAGE_DIR:uploads/activity-photos}
     max-file-size-bytes: ${PHOTO_MAX_FILE_SIZE_BYTES:10485760}

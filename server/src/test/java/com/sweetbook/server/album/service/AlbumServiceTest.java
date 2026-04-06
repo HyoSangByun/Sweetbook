@@ -7,6 +7,7 @@ import com.sweetbook.server.activity.repository.ActivityRepository;
 import com.sweetbook.server.album.domain.AlbumActivity;
 import com.sweetbook.server.album.domain.AlbumProject;
 import com.sweetbook.server.album.domain.AlbumProjectStatus;
+import com.sweetbook.server.album.domain.BookGenerationStatus;
 import com.sweetbook.server.album.dto.DeselectAlbumActivityResponse;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesRequest;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesResponse;
@@ -131,6 +132,7 @@ class AlbumServiceTest {
                 .subtitle("sub")
                 .monthlyReview("review")
                 .status(AlbumProjectStatus.DRAFT)
+                .bookStatus(BookGenerationStatus.NOT_GENERATED)
                 .build();
     }
 

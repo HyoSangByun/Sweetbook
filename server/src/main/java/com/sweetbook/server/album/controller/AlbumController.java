@@ -3,6 +3,7 @@ package com.sweetbook.server.album.controller;
 import com.sweetbook.server.album.dto.AlbumResponse;
 import com.sweetbook.server.album.dto.CreateAlbumRequest;
 import com.sweetbook.server.album.dto.DeselectAlbumActivityResponse;
+import com.sweetbook.server.album.dto.GenerateBookResponse;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesRequest;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesResponse;
 import com.sweetbook.server.album.dto.UpdateAlbumRequest;
@@ -13,6 +14,7 @@ import com.sweetbook.server.photo.dto.ActivityPhotoItemResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
 import com.sweetbook.server.photo.service.ActivityPhotoService;
 import com.sweetbook.server.security.AppUserPrincipal;
+import com.sweetbook.server.sweetbook.service.AlbumBookGenerationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -37,6 +39,7 @@ public class AlbumController {
 
     private final AlbumService albumService;
     private final ActivityPhotoService activityPhotoService;
+    private final AlbumBookGenerationService albumBookGenerationService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<AlbumResponse>> createAlbum(
@@ -117,6 +120,16 @@ public class AlbumController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 activityPhotoService.listPhotos(principal.getUserId(), albumId, activityId)
+        ));
+    }
+
+    @PostMapping("/{albumId}/book")
+    public ResponseEntity<ApiResponse<GenerateBookResponse>> generateBook(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                albumBookGenerationService.generateBook(principal.getUserId(), albumId)
         ));
     }
 }
