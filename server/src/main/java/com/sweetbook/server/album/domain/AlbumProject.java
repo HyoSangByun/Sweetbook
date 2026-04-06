@@ -56,9 +56,15 @@ public class AlbumProject {
     @Column(name = "book_uid", length = 100)
     private String bookUid;
 
+    @Column(name = "book_external_ref", length = 120)
+    private String bookExternalRef;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "book_status", nullable = false, length = 30)
     private BookGenerationStatus bookStatus;
+
+    @Column(name = "book_finalization_pending", nullable = false)
+    private boolean bookFinalizationPending;
 
     @Column(name = "book_generated_at")
     private LocalDateTime bookGeneratedAt;
@@ -87,5 +93,14 @@ public class AlbumProject {
         this.bookUid = bookUid;
         this.bookStatus = BookGenerationStatus.GENERATED;
         this.bookGeneratedAt = generatedAt;
+        this.bookFinalizationPending = false;
+    }
+
+    public void markBookGenerationPending(String externalRef) {
+        if (externalRef == null || externalRef.isBlank()) {
+            throw new IllegalArgumentException("externalRef must not be blank.");
+        }
+        this.bookExternalRef = externalRef;
+        this.bookFinalizationPending = true;
     }
 }
