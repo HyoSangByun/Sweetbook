@@ -11,8 +11,10 @@ import com.sweetbook.server.album.service.AlbumService;
 import com.sweetbook.server.common.response.ApiResponse;
 import com.sweetbook.server.order.dto.CreateOrderApiRequest;
 import com.sweetbook.server.order.dto.CreateOrderApiResponse;
+import com.sweetbook.server.order.dto.CancelOrderApiRequest;
 import com.sweetbook.server.order.dto.OrderDetailResponse;
 import com.sweetbook.server.order.dto.OrderSummaryResponse;
+import com.sweetbook.server.order.dto.UpdateOrderShippingRequest;
 import com.sweetbook.server.order.service.OrderService;
 import com.sweetbook.server.photo.dto.ActivityPhotoDeleteResponse;
 import com.sweetbook.server.photo.dto.ActivityPhotoItemResponse;
@@ -168,6 +170,30 @@ public class AlbumController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 orderService.getOrder(principal.getUserId(), albumId, orderId)
+        ));
+    }
+
+    @PostMapping("/{albumId}/orders/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<OrderDetailResponse>> cancelOrder(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @PathVariable Long orderId,
+            @Valid @RequestBody CancelOrderApiRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                orderService.cancelOrder(principal.getUserId(), albumId, orderId, request)
+        ));
+    }
+
+    @PatchMapping("/{albumId}/orders/{orderId}/shipping")
+    public ResponseEntity<ApiResponse<OrderDetailResponse>> updateOrderShipping(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @PathVariable Long orderId,
+            @Valid @RequestBody UpdateOrderShippingRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                orderService.updateOrderShipping(principal.getUserId(), albumId, orderId, request)
         ));
     }
 }

@@ -40,4 +40,48 @@ public class SweetbookOrdersClient {
         }
         return response.data().orderUid();
     }
+
+    public Map<String, Object> cancelOrder(String orderUid, String cancelReason) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.post()
+                    .uri("/v1/orders/{orderUid}/cancel", orderUid)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("cancelReason", cancelReason))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to cancel order.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to cancel order.");
+        }
+        return response.data();
+    }
+
+    public Map<String, Object> updateShipping(String orderUid, Map<String, Object> shippingPatch) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.patch()
+                    .uri("/v1/orders/{orderUid}/shipping", orderUid)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(shippingPatch)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to update order shipping.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to update order shipping.");
+        }
+        return response.data();
+    }
 }

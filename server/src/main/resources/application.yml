@@ -37,6 +37,7 @@ app:
     api-key: ${SWEETBOOK_SANDBOX_API_KEY}
     book-spec-uid: ${SWEETBOOK_BOOK_SPEC_UID}
     webhook-secret: ${SWEETBOOK_WEBHOOK_SECRET:}
+    webhook-timestamp-tolerance: ${SWEETBOOK_WEBHOOK_TIMESTAMP_TOLERANCE:5m}
     connect-timeout: ${SWEETBOOK_CONNECT_TIMEOUT:3s}
     read-timeout: ${SWEETBOOK_READ_TIMEOUT:10s}
   photo:

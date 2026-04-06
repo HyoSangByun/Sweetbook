@@ -8,6 +8,8 @@ import com.sweetbook.server.order.service.OrderService;
 import com.sweetbook.server.sweetbook.config.SweetbookProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -70,10 +72,27 @@ public class SweetbookWebhookService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Missing webhook signature headers.");
         }
 
+        verifyTimestamp(timestamp);
+
         String payload = timestamp + "." + rawBody;
         String expected = "sha256=" + hmacSha256Hex(secret, payload);
         if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8))) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid webhook signature.");
+        }
+    }
+
+    private void verifyTimestamp(String timestamp) {
+        long epochSeconds;
+        try {
+            epochSeconds = Long.parseLong(timestamp);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid webhook timestamp.");
+        }
+
+        Instant eventTime = Instant.ofEpochSecond(epochSeconds);
+        Duration drift = Duration.between(eventTime, Instant.now()).abs();
+        if (drift.compareTo(sweetbookProperties.webhookTimestampTolerance()) > 0) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Webhook timestamp is out of allowed range.");
         }
     }
 

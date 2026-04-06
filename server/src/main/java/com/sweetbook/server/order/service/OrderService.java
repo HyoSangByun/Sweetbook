@@ -11,10 +11,12 @@ import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.order.domain.Order;
 import com.sweetbook.server.order.domain.OrderStatus;
+import com.sweetbook.server.order.dto.CancelOrderApiRequest;
 import com.sweetbook.server.order.dto.CreateOrderApiRequest;
 import com.sweetbook.server.order.dto.CreateOrderApiResponse;
 import com.sweetbook.server.order.dto.OrderDetailResponse;
 import com.sweetbook.server.order.dto.OrderSummaryResponse;
+import com.sweetbook.server.order.dto.UpdateOrderShippingRequest;
 import com.sweetbook.server.order.repository.OrderRepository;
 import com.sweetbook.server.sweetbook.client.SweetbookOrdersClient;
 import java.nio.charset.StandardCharsets;
@@ -85,6 +87,43 @@ public class OrderService {
         Order order = orderRepository.findByIdAndAlbumProjectId(orderId, albumProject.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "주문을 찾을 수 없습니다."));
         return toDetailResponse(order);
+    }
+
+    public OrderDetailResponse cancelOrder(Long userId, Long albumId, Long orderId, CancelOrderApiRequest request) {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        return template.execute(status -> {
+            Order order = getOwnedOrder(userId, albumId, orderId);
+            validateCancelable(order);
+            if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 취소할 수 없습니다.");
+            }
+
+            Map<String, Object> response = sweetbookOrdersClient.cancelOrder(order.getOrderUid(), request.cancelReason());
+            syncRemoteFromResponse(order, response, 80, "CANCELLED");
+            order.markCancelled();
+            return toDetailResponse(order);
+        });
+    }
+
+    public OrderDetailResponse updateOrderShipping(Long userId, Long albumId, Long orderId, UpdateOrderShippingRequest request) {
+        Map<String, Object> patch = request.toPatchMap();
+        if (patch.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "배송지 변경 필드를 1개 이상 입력해야 합니다.");
+        }
+
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        return template.execute(status -> {
+            Order order = getOwnedOrder(userId, albumId, orderId);
+            validateShippingUpdatable(order);
+            if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 배송지 변경을 할 수 없습니다.");
+            }
+
+            Map<String, Object> response = sweetbookOrdersClient.updateShipping(order.getOrderUid(), patch);
+            syncRemoteFromResponse(order, response, order.getRemoteOrderStatusCode(), order.getRemoteOrderStatusDisplay());
+            mergeShippingToStoredPayload(order, patch);
+            return toDetailResponse(order);
+        });
     }
 
     public void applyWebhookStatusUpdate(
@@ -213,6 +252,38 @@ public class OrderService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
     }
 
+    private Order getOwnedOrder(Long userId, Long albumId, Long orderId) {
+        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+        return orderRepository.findByIdAndAlbumProjectId(orderId, albumProject.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "주문을 찾을 수 없습니다."));
+    }
+
+    private void validateCancelable(Order order) {
+        Integer remoteCode = order.getRemoteOrderStatusCode();
+        if (remoteCode == null) {
+            if (order.getStatus() == OrderStatus.CREATED) {
+                return;
+            }
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "취소 가능한 주문 상태가 아닙니다.");
+        }
+        if (remoteCode != 20 && remoteCode != 25) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "PAID 또는 PDF_READY 상태에서만 취소할 수 있습니다.");
+        }
+    }
+
+    private void validateShippingUpdatable(Order order) {
+        Integer remoteCode = order.getRemoteOrderStatusCode();
+        if (remoteCode == null) {
+            if (order.getStatus() == OrderStatus.CREATED) {
+                return;
+            }
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "배송지 변경 가능한 주문 상태가 아닙니다.");
+        }
+        if (remoteCode != 20 && remoteCode != 25 && remoteCode != 30) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "PAID, PDF_READY, CONFIRMED 상태에서만 배송지를 변경할 수 있습니다.");
+        }
+    }
+
     private void validateOrderableAlbum(AlbumProject albumProject) {
         if (albumProject.getBookStatus() != BookGenerationStatus.GENERATED
                 || albumProject.getBookUid() == null
@@ -270,6 +341,22 @@ public class OrderService {
         }
     }
 
+    private void mergeShippingToStoredPayload(Order order, Map<String, Object> patch) {
+        Map<String, Object> payload = new LinkedHashMap<>(fromJson(order.getRequestPayload()));
+        Object shippingRaw = payload.get("shipping");
+        Map<String, Object> shipping = new LinkedHashMap<>();
+        if (shippingRaw instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                shipping.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        shipping.putAll(patch);
+        payload.put("shipping", shipping);
+        String json = toCanonicalJson(payload);
+        validateRequestPayloadLength(json, order.getAlbumProject().getId(), order.getExternalRef());
+        order.updateRequestPayload(json);
+    }
+
     private byte[] digestSha256(byte[] input) {
         try {
             return MessageDigest.getInstance("SHA-256").digest(input);
@@ -285,6 +372,46 @@ public class OrderService {
             return null;
         }
         return errorMessage.length() <= 500 ? errorMessage : errorMessage.substring(0, 500);
+    }
+
+    private void syncRemoteFromResponse(Order order, Map<String, Object> response, Integer defaultCode, String defaultDisplay) {
+        Integer code = getInt(response, "orderStatus");
+        String display = getString(response, "orderStatusDisplay");
+        LocalDateTime orderedAt = parseOrderedAt(getString(response, "orderedAt"));
+
+        Integer resolvedCode = code != null ? code : defaultCode;
+        String resolvedDisplay = display != null ? display : defaultDisplay;
+        order.updateRemoteStatus(resolvedCode, resolvedDisplay, orderedAt);
+
+        if (resolvedCode != null) {
+            OrderStatus mapped = mapRemoteToLocalStatus(resolvedCode);
+            if (mapped != null) {
+                applyMappedStatus(order, mapped, resolvedCode, resolvedDisplay, "remote.sync");
+            }
+        }
+    }
+
+    private Integer getInt(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String getString(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        if (value == null) {
+            return null;
+        }
+        return String.valueOf(value);
     }
 
     private void validateRequestPayloadLength(String payloadJson, Long albumId, String externalRef) {

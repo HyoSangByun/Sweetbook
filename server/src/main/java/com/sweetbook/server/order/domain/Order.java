@@ -97,6 +97,10 @@ public class Order {
         this.lastErrorMessage = null;
     }
 
+    public void updateRequestPayload(String requestPayload) {
+        this.requestPayload = requestPayload;
+    }
+
     public void markCreated(String orderUid) {
         this.orderUid = orderUid;
         this.status = OrderStatus.CREATED;

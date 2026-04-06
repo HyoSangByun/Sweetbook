@@ -9,6 +9,7 @@ public record SweetbookProperties(
         String apiKey,
         String bookSpecUid,
         String webhookSecret,
+        Duration webhookTimestampTolerance,
         Duration connectTimeout,
         Duration readTimeout
 ) {
@@ -28,6 +29,9 @@ public record SweetbookProperties(
         }
         if (readTimeout == null || readTimeout.isZero() || readTimeout.isNegative()) {
             throw new IllegalArgumentException("app.sweetbook.read-timeout must be positive.");
+        }
+        if (webhookTimestampTolerance == null || webhookTimestampTolerance.isZero() || webhookTimestampTolerance.isNegative()) {
+            throw new IllegalArgumentException("app.sweetbook.webhook-timestamp-tolerance must be positive.");
         }
     }
 }
