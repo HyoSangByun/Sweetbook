@@ -2,7 +2,6 @@ package com.sweetbook.server.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -127,6 +126,94 @@ class OrderServiceTest {
         assertThat(detail.payload()).containsKey("items");
     }
 
+    @Test
+    void webhook_상태코드_70이면_COMPLETED로_전이한다() {
+        User user = userRepository.save(newUser("webhook-completed@sweetbook.com"));
+        AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_005"));
+        Order order = orderRepository.save(Order.builder()
+                .albumProject(album)
+                .orderUid("or_webhook_1")
+                .externalRef("ext-webhook-1")
+                .requestPayload("{\"items\":[]}")
+                .status(OrderStatus.CREATED)
+                .build());
+
+        orderService.applyWebhookStatusUpdate(
+                "or_webhook_1",
+                70,
+                "배송 완료",
+                LocalDateTime.now(),
+                "wh_001",
+                "shipping.delivered"
+        );
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(updated.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        assertThat(updated.getRemoteOrderStatusCode()).isEqualTo(70);
+    }
+
+    @Test
+    void webhook_역전이_상태코드는_무시한다() {
+        User user = userRepository.save(newUser("webhook-guard@sweetbook.com"));
+        AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_006"));
+        Order order = orderRepository.save(Order.builder()
+                .albumProject(album)
+                .orderUid("or_webhook_2")
+                .externalRef("ext-webhook-2")
+                .requestPayload("{\"items\":[]}")
+                .status(OrderStatus.CREATED)
+                .build());
+        order.updateRemoteStatus(40, "제작 중", LocalDateTime.now());
+        orderRepository.save(order);
+
+        orderService.applyWebhookStatusUpdate(
+                "or_webhook_2",
+                25,
+                "PDF 준비 완료",
+                LocalDateTime.now(),
+                "wh_002",
+                "production.confirmed"
+        );
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(updated.getRemoteOrderStatusCode()).isEqualTo(40);
+    }
+
+    @Test
+    void webhook_같은_delivery_id는_재처리하지_않는다() {
+        User user = userRepository.save(newUser("webhook-dup@sweetbook.com"));
+        AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_007"));
+        Order order = orderRepository.save(Order.builder()
+                .albumProject(album)
+                .orderUid("or_webhook_3")
+                .externalRef("ext-webhook-3")
+                .requestPayload("{\"items\":[]}")
+                .status(OrderStatus.CREATED)
+                .build());
+
+        orderService.applyWebhookStatusUpdate(
+                "or_webhook_3",
+                30,
+                "제작 확정",
+                LocalDateTime.now(),
+                "wh_dup_1",
+                "production.confirmed"
+        );
+
+        orderService.applyWebhookStatusUpdate(
+                "or_webhook_3",
+                90,
+                "오류",
+                LocalDateTime.now(),
+                "wh_dup_1",
+                "order.error"
+        );
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(updated.getRemoteOrderStatusCode()).isEqualTo(30);
+        assertThat(updated.getStatus()).isEqualTo(OrderStatus.CREATED);
+    }
+
     private User newUser(String email) {
         return User.builder()
                 .email(email)
@@ -177,4 +264,3 @@ class OrderServiceTest {
         );
     }
 }
-
