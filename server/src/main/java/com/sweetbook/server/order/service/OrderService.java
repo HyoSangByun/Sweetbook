@@ -50,22 +50,25 @@ public class OrderService {
     private final PlatformTransactionManager transactionManager;
 
     public CreateOrderApiResponse createOrder(Long userId, Long albumId, CreateOrderApiRequest request) {
-        Map<String, Object> payload = buildBasePayload(request);
+        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+        validateOrderableAlbum(albumProject);
+
+        Map<String, Object> payload = buildBasePayload(request, albumProject.getBookUid());
         String payloadJsonForRef = toCanonicalJson(payload);
         String externalRef = resolveExternalRef(albumId, request.externalRef(), payloadJsonForRef);
         payload.put("externalRef", externalRef);
         String payloadJson = toCanonicalJson(payload);
         validateRequestPayloadLength(payloadJson, albumId, externalRef);
-        String idempotencyKey = "order-" + externalRef;
+        String idempotencyKey = "order-" + albumId + "-" + externalRef;
 
-        OrderPreparation preparation = prepareOrder(userId, albumId, externalRef, payloadJson);
+        OrderPreparation preparation = prepareOrder(albumProject, externalRef, payloadJson);
         if (preparation.existingOrder() != null) {
             return toCreateResponse(preparation.existingOrder());
         }
 
+        final String orderUid;
         try {
-            String orderUid = sweetbookOrdersClient.createOrder(payload, idempotencyKey);
-            return markCreated(userId, albumId, externalRef, orderUid);
+            orderUid = sweetbookOrdersClient.createOrder(payload, idempotencyKey);
         } catch (BusinessException ex) {
             markFailed(userId, albumId, externalRef, ex.getMessage());
             throw ex;
@@ -73,6 +76,8 @@ public class OrderService {
             markFailed(userId, albumId, externalRef, ex.getMessage());
             throw ex;
         }
+
+        return markCreated(userId, albumId, externalRef, orderUid);
     }
 
     public List<OrderSummaryResponse> listOrders(Long userId, Long albumId) {
@@ -85,30 +90,32 @@ public class OrderService {
     public OrderDetailResponse getOrder(Long userId, Long albumId, Long orderId) {
         AlbumProject albumProject = getOwnedAlbum(userId, albumId);
         Order order = orderRepository.findByIdAndAlbumProjectId(orderId, albumProject.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "주문을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "二쇰Ц??李얠쓣 ???놁뒿?덈떎."));
         return toDetailResponse(order);
     }
-
     public OrderDetailResponse cancelOrder(Long userId, Long albumId, Long orderId, CancelOrderApiRequest request) {
+        Order order = getOwnedOrder(userId, albumId, orderId);
+        validateCancelable(order);
+        if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid媛 ?놁뼱 二쇰Ц??痍⑥냼?????놁뒿?덈떎.");
+        }
+
+        String orderUid = order.getOrderUid();
+        Map<String, Object> response = sweetbookOrdersClient.cancelOrder(orderUid, request.cancelReason());
+
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
-            Order order = getOwnedOrder(userId, albumId, orderId);
-            validateCancelable(order);
-            if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 주문을 취소할 수 없습니다.");
-            }
-
-            Map<String, Object> response = sweetbookOrdersClient.cancelOrder(order.getOrderUid(), request.cancelReason());
-            syncRemoteFromResponse(order, response, 80, "CANCELLED");
-            order.markCancelled();
-            return toDetailResponse(order);
+            Order managedOrder = getOwnedOrder(userId, albumId, orderId);
+            syncRemoteFromResponse(managedOrder, response, 80, "CANCELLED");
+            managedOrder.markCancelled();
+            orderRepository.save(managedOrder);
+            return toDetailResponse(managedOrder);
         });
     }
-
     public OrderDetailResponse updateOrderShipping(Long userId, Long albumId, Long orderId, UpdateOrderShippingRequest request) {
         Map<String, Object> patch = request.toPatchMap();
         if (patch.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "배송지 변경 필드를 1개 이상 입력해야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "諛곗넚吏 蹂寃??꾨뱶瑜?1媛??댁긽 ?낅젰?댁빞 ?⑸땲??");
         }
 
         TransactionTemplate template = new TransactionTemplate(transactionManager);
@@ -116,7 +123,7 @@ public class OrderService {
             Order order = getOwnedOrder(userId, albumId, orderId);
             validateShippingUpdatable(order);
             if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 배송지를 변경할 수 없습니다.");
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid媛 ?놁뼱 諛곗넚吏瑜?蹂寃쏀븷 ???놁뒿?덈떎.");
             }
 
             Map<String, Object> response = sweetbookOrdersClient.updateShipping(order.getOrderUid(), patch);
@@ -183,12 +190,10 @@ public class OrderService {
         );
     }
 
-    private OrderPreparation prepareOrder(Long userId, Long albumId, String externalRef, String payloadJson) {
+    private OrderPreparation prepareOrder(AlbumProject albumProject, String externalRef, String payloadJson) {
+        Long albumId = albumProject.getId();
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
-            AlbumProject albumProject = getOwnedAlbum(userId, albumId);
-            validateOrderableAlbum(albumProject);
-
             Order existing = orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef).orElse(null);
             if (existing != null) {
                 if (existing.getStatus() != OrderStatus.FAILED) {
@@ -227,7 +232,7 @@ public class OrderService {
             Order order = orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef)
                     .orElseThrow(() -> new BusinessException(
                             ErrorCode.INVALID_INPUT,
-                            "주문 상태 레코드를 찾을 수 없습니다."
+                            "二쇰Ц ?곹깭 ?덉퐫?쒕? 李얠쓣 ???놁뒿?덈떎."
                     ));
             order.markCreated(orderUid);
             return toCreateResponse(order);
@@ -255,7 +260,7 @@ public class OrderService {
     private Order getOwnedOrder(Long userId, Long albumId, Long orderId) {
         AlbumProject albumProject = getOwnedAlbum(userId, albumId);
         return orderRepository.findByIdAndAlbumProjectId(orderId, albumProject.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "주문을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "二쇰Ц??李얠쓣 ???놁뒿?덈떎."));
     }
 
     private void validateCancelable(Order order) {
@@ -264,10 +269,10 @@ public class OrderService {
             if (order.getStatus() == OrderStatus.CREATED) {
                 return;
             }
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "취소 가능한 주문 상태가 아닙니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "痍⑥냼 媛?ν븳 二쇰Ц ?곹깭媛 ?꾨떃?덈떎.");
         }
         if (remoteCode != 20 && remoteCode != 25) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "PAID 또는 PDF_READY 상태에서만 취소할 수 있습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "PAID ?먮뒗 PDF_READY ?곹깭?먯꽌留?痍⑥냼?????덉뒿?덈떎.");
         }
     }
 
@@ -277,10 +282,10 @@ public class OrderService {
             if (order.getStatus() == OrderStatus.CREATED) {
                 return;
             }
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "배송지 변경 가능한 주문 상태가 아닙니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "諛곗넚吏 蹂寃?媛?ν븳 二쇰Ц ?곹깭媛 ?꾨떃?덈떎.");
         }
         if (remoteCode != 20 && remoteCode != 25 && remoteCode != 30) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "PAID, PDF_READY, CONFIRMED 상태에서만 배송지를 변경할 수 있습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "PAID, PDF_READY, CONFIRMED ?곹깭?먯꽌留?諛곗넚吏瑜?蹂寃쏀븷 ???덉뒿?덈떎.");
         }
     }
 
@@ -290,16 +295,16 @@ public class OrderService {
                 || albumProject.getBookUid().isBlank()) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT,
-                    "책 생성이 완료된 앨범만 주문할 수 있습니다."
+                    "梨??앹꽦???꾨즺???⑤쾾留?二쇰Ц?????덉뒿?덈떎."
             );
         }
     }
 
-    private Map<String, Object> buildBasePayload(CreateOrderApiRequest request) {
+    private Map<String, Object> buildBasePayload(CreateOrderApiRequest request, String ownedBookUid) {
         List<Map<String, Object>> itemMaps = request.items().stream()
                 .map(item -> {
                     Map<String, Object> map = new LinkedHashMap<>();
-                    map.put("bookUid", item.bookUid());
+                    map.put("bookUid", ownedBookUid);
                     map.put("quantity", item.quantity());
                     return map;
                 })
@@ -326,7 +331,7 @@ public class OrderService {
         try {
             return CANONICAL_OBJECT_MAPPER.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
-            BusinessException be = new BusinessException(ErrorCode.INVALID_INPUT, "주문 payload 직렬화에 실패했습니다.");
+            BusinessException be = new BusinessException(ErrorCode.INVALID_INPUT, "二쇰Ц payload 吏곷젹?붿뿉 ?ㅽ뙣?덉뒿?덈떎.");
             be.initCause(e);
             throw be;
         }
@@ -361,7 +366,7 @@ public class OrderService {
         try {
             return MessageDigest.getInstance("SHA-256").digest(input);
         } catch (NoSuchAlgorithmException e) {
-            BusinessException be = new BusinessException(ErrorCode.INTERNAL_ERROR, "해시 알고리즘을 사용할 수 없습니다.");
+            BusinessException be = new BusinessException(ErrorCode.INTERNAL_ERROR, "?댁떆 ?뚭퀬由ъ쬁???ъ슜?????놁뒿?덈떎.");
             be.initCause(e);
             throw be;
         }
@@ -427,7 +432,7 @@ public class OrderService {
         );
         throw new BusinessException(
                 ErrorCode.INVALID_INPUT,
-                "주문 요청 payload 길이는 8000자를 초과할 수 없습니다."
+                "二쇰Ц ?붿껌 payload 湲몄씠??8000?먮? 珥덇낵?????놁뒿?덈떎."
         );
     }
 
@@ -496,7 +501,7 @@ public class OrderService {
             case CREATED -> order.markCreated(order.getOrderUid());
             case COMPLETED -> order.markCompleted();
             case CANCELLED -> order.markCancelled();
-            case FAILED -> order.markFailed(trimError("원격 주문 오류 상태(" + remoteCode + ", " + remoteDisplay + ")"));
+            case FAILED -> order.markFailed(trimError("?먭꺽 二쇰Ц ?ㅻ쪟 ?곹깭(" + remoteCode + ", " + remoteDisplay + ")"));
             case REQUESTED -> {
             }
         }
