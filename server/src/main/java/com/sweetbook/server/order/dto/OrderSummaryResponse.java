@@ -9,8 +9,10 @@ public record OrderSummaryResponse(
         String externalRef,
         OrderStatus status,
         String lastErrorMessage,
+        Integer remoteOrderStatusCode,
+        String remoteOrderStatusDisplay,
+        LocalDateTime remoteOrderedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
 }
-

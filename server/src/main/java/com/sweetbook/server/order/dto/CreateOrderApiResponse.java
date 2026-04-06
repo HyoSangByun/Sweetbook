@@ -9,6 +9,9 @@ public record CreateOrderApiResponse(
         String externalRef,
         OrderStatus status,
         String lastErrorMessage,
+        Integer remoteOrderStatusCode,
+        String remoteOrderStatusDisplay,
+        LocalDateTime remoteOrderedAt,
         LocalDateTime createdAt
 ) {
 }

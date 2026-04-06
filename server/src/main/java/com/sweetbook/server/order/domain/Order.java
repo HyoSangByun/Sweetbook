@@ -65,6 +65,24 @@ public class Order {
     @Column(name = "last_error_message", length = 500)
     private String lastErrorMessage;
 
+    @Column(name = "remote_order_status_code")
+    private Integer remoteOrderStatusCode;
+
+    @Column(name = "remote_order_status_display", length = 120)
+    private String remoteOrderStatusDisplay;
+
+    @Column(name = "remote_ordered_at")
+    private LocalDateTime remoteOrderedAt;
+
+    @Column(name = "last_webhook_delivery_id", length = 120)
+    private String lastWebhookDeliveryId;
+
+    @Column(name = "last_webhook_event_type", length = 120)
+    private String lastWebhookEventType;
+
+    @Column(name = "last_webhook_received_at")
+    private LocalDateTime lastWebhookReceivedAt;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -88,5 +106,27 @@ public class Order {
     public void markFailed(String errorMessage) {
         this.status = OrderStatus.FAILED;
         this.lastErrorMessage = errorMessage;
+    }
+
+    public void markCompleted() {
+        this.status = OrderStatus.COMPLETED;
+        this.lastErrorMessage = null;
+    }
+
+    public void markCancelled() {
+        this.status = OrderStatus.CANCELLED;
+        this.lastErrorMessage = null;
+    }
+
+    public void updateRemoteStatus(Integer remoteOrderStatusCode, String remoteOrderStatusDisplay, LocalDateTime remoteOrderedAt) {
+        this.remoteOrderStatusCode = remoteOrderStatusCode;
+        this.remoteOrderStatusDisplay = remoteOrderStatusDisplay;
+        this.remoteOrderedAt = remoteOrderedAt;
+    }
+
+    public void updateWebhookMetadata(String deliveryId, String eventType, LocalDateTime receivedAt) {
+        this.lastWebhookDeliveryId = deliveryId;
+        this.lastWebhookEventType = eventType;
+        this.lastWebhookReceivedAt = receivedAt;
     }
 }

@@ -20,6 +20,8 @@ import com.sweetbook.server.sweetbook.client.SweetbookOrdersClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,8 +57,8 @@ public class OrderService {
         String idempotencyKey = "order-" + externalRef;
 
         OrderPreparation preparation = prepareOrder(userId, albumId, externalRef, payloadJson);
-        if (preparation.existingCreatedOrder() != null) {
-            return toCreateResponse(preparation.existingCreatedOrder());
+        if (preparation.existingOrder() != null) {
+            return toCreateResponse(preparation.existingOrder());
         }
 
         try {
@@ -85,6 +87,42 @@ public class OrderService {
         return toDetailResponse(order);
     }
 
+    public void applyWebhookStatusUpdate(
+            String orderUid,
+            Integer remoteOrderStatusCode,
+            String remoteOrderStatusDisplay,
+            LocalDateTime remoteOrderedAt,
+            String deliveryId,
+            String eventType
+    ) {
+        if (orderUid == null || orderUid.isBlank()) {
+            return;
+        }
+
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.executeWithoutResult(status -> orderRepository.findByOrderUid(orderUid).ifPresent(order -> {
+            if (deliveryId != null && deliveryId.equals(order.getLastWebhookDeliveryId())) {
+                return;
+            }
+
+            Integer currentCode = order.getRemoteOrderStatusCode();
+            if (isOutdatedStatus(currentCode, remoteOrderStatusCode)) {
+                order.updateWebhookMetadata(deliveryId, eventType, LocalDateTime.now());
+                return;
+            }
+
+            if (remoteOrderStatusCode != null) {
+                order.updateRemoteStatus(remoteOrderStatusCode, remoteOrderStatusDisplay, remoteOrderedAt);
+                OrderStatus mapped = mapRemoteToLocalStatus(remoteOrderStatusCode);
+                if (mapped != null && canTransition(order.getStatus(), mapped)) {
+                    applyMappedStatus(order, mapped, remoteOrderStatusCode, remoteOrderStatusDisplay);
+                }
+            }
+
+            order.updateWebhookMetadata(deliveryId, eventType, LocalDateTime.now());
+        }));
+    }
+
     private OrderPreparation prepareOrder(Long userId, Long albumId, String externalRef, String payloadJson) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
@@ -92,11 +130,10 @@ public class OrderService {
             validateOrderableAlbum(albumProject);
 
             Order existing = orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef).orElse(null);
-            if (existing != null && existing.getStatus() == OrderStatus.CREATED) {
-                return new OrderPreparation(existing);
-            }
-
             if (existing != null) {
+                if (existing.getStatus() != OrderStatus.FAILED) {
+                    return new OrderPreparation(existing);
+                }
                 existing.markRequested(payloadJson);
                 orderRepository.saveAndFlush(existing);
                 return new OrderPreparation(null);
@@ -113,7 +150,7 @@ public class OrderService {
             } catch (DataIntegrityViolationException ex) {
                 Order conflicted = orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef)
                         .orElseThrow(() -> ex);
-                if (conflicted.getStatus() == OrderStatus.CREATED) {
+                if (conflicted.getStatus() != OrderStatus.FAILED) {
                     return new OrderPreparation(conflicted);
                 }
                 conflicted.markRequested(payloadJson);
@@ -143,7 +180,7 @@ public class OrderService {
             getOwnedAlbum(userId, albumId);
             orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef)
                     .ifPresent(order -> {
-                        if (order.getStatus() != OrderStatus.CREATED) {
+                        if (order.getStatus() == OrderStatus.REQUESTED || order.getStatus() == OrderStatus.FAILED) {
                             order.markFailed(trimError(errorMessage));
                         }
                     });
@@ -246,6 +283,69 @@ public class OrderService {
         );
     }
 
+    private boolean isOutdatedStatus(Integer currentCode, Integer incomingCode) {
+        if (currentCode == null || incomingCode == null) {
+            return false;
+        }
+        return statusRank(incomingCode) < statusRank(currentCode);
+    }
+
+    private OrderStatus mapRemoteToLocalStatus(int remoteCode) {
+        if (remoteCode == 70) {
+            return OrderStatus.COMPLETED;
+        }
+        if (remoteCode == 80 || remoteCode == 81) {
+            return OrderStatus.CANCELLED;
+        }
+        if (remoteCode == 90) {
+            return OrderStatus.FAILED;
+        }
+        if (remoteCode >= 20 && remoteCode < 70) {
+            return OrderStatus.CREATED;
+        }
+        return null;
+    }
+
+    private int statusRank(int remoteCode) {
+        return switch (remoteCode) {
+            case 20 -> 1;
+            case 25 -> 2;
+            case 30 -> 3;
+            case 40 -> 4;
+            case 45 -> 5;
+            case 50 -> 6;
+            case 60 -> 7;
+            case 70 -> 8;
+            case 80, 81 -> 9;
+            case 90 -> 10;
+            default -> -1;
+        };
+    }
+
+    private boolean canTransition(OrderStatus current, OrderStatus target) {
+        if (current == target) {
+            return true;
+        }
+        if (current == OrderStatus.COMPLETED || current == OrderStatus.CANCELLED) {
+            return false;
+        }
+        if (current == OrderStatus.CREATED && target == OrderStatus.REQUESTED) {
+            return false;
+        }
+        return true;
+    }
+
+    private void applyMappedStatus(Order order, OrderStatus mapped, int remoteCode, String remoteDisplay) {
+        switch (mapped) {
+            case CREATED -> order.markCreated(order.getOrderUid());
+            case COMPLETED -> order.markCompleted();
+            case CANCELLED -> order.markCancelled();
+            case FAILED -> order.markFailed(trimError("원격 주문 오류 상태(" + remoteCode + ", " + remoteDisplay + ")"));
+            case REQUESTED -> {
+            }
+        }
+    }
+
     private CreateOrderApiResponse toCreateResponse(Order order) {
         return new CreateOrderApiResponse(
                 order.getId(),
@@ -253,6 +353,9 @@ public class OrderService {
                 order.getExternalRef(),
                 order.getStatus(),
                 order.getLastErrorMessage(),
+                order.getRemoteOrderStatusCode(),
+                order.getRemoteOrderStatusDisplay(),
+                order.getRemoteOrderedAt(),
                 order.getCreatedAt()
         );
     }
@@ -264,6 +367,9 @@ public class OrderService {
                 order.getExternalRef(),
                 order.getStatus(),
                 order.getLastErrorMessage(),
+                order.getRemoteOrderStatusCode(),
+                order.getRemoteOrderStatusDisplay(),
+                order.getRemoteOrderedAt(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()
         );
@@ -276,12 +382,27 @@ public class OrderService {
                 order.getExternalRef(),
                 order.getStatus(),
                 order.getLastErrorMessage(),
+                order.getRemoteOrderStatusCode(),
+                order.getRemoteOrderStatusDisplay(),
+                order.getRemoteOrderedAt(),
                 fromJson(order.getRequestPayload()),
                 order.getCreatedAt(),
                 order.getUpdatedAt()
         );
     }
 
-    private record OrderPreparation(Order existingCreatedOrder) {
+    public LocalDateTime parseOrderedAt(String orderedAt) {
+        if (orderedAt == null || orderedAt.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(orderedAt).toLocalDateTime();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private record OrderPreparation(Order existingOrder) {
     }
 }
+

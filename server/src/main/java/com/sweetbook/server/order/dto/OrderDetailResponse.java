@@ -10,9 +10,11 @@ public record OrderDetailResponse(
         String externalRef,
         OrderStatus status,
         String lastErrorMessage,
+        Integer remoteOrderStatusCode,
+        String remoteOrderStatusDisplay,
+        LocalDateTime remoteOrderedAt,
         Map<String, Object> payload,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
 }
-

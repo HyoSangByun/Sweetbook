@@ -8,6 +8,7 @@ public record SweetbookProperties(
         String baseUrl,
         String apiKey,
         String bookSpecUid,
+        String webhookSecret,
         Duration connectTimeout,
         Duration readTimeout
 ) {
