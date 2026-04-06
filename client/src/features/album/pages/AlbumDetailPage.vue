@@ -51,7 +51,13 @@
               <div class="photo-grid">
                 <div v-for="photo in photoStore.photosByActivity[activity.activityId]" :key="photo.photoId" class="photo-item">
                   <img :src="`/api/albums/${albumStore.currentAlbum.albumId}/activities/${activity.activityId}/photos/${photo.photoId}`" :alt="photo.originalFileName" class="photo-img" />
-                  <button @click="handleDeletePhoto(activity.activityId, photo.photoId)" class="btn-delete-photo">×</button>
+                  <button
+                    @click="handleDeletePhoto(activity.activityId, photo.photoId)"
+                    class="btn-delete-photo"
+                    :disabled="deleteLoadingByPhoto[photo.photoId]"
+                  >
+                    ×
+                  </button>
                 </div>
                 <div class="upload-placeholder" @click="triggerPhotoUpload(activity.activityId)">
                   <span v-if="photoStore.isLoading">...</span>
@@ -100,14 +106,16 @@
     </div>
 
     <!-- Info Edit Modal (Placeholder) -->
-    <div v-if="isEditingInfo" class="modal-overlay">
-       <!-- Modal implementation would go here -->
+    <div v-if="isEditingInfo" class="modal-overlay" @click.self="closeInfoModal">
+      <div class="modal-content">
+        <button class="btn-modal-close" @click="closeInfoModal" aria-label="정보 수정 모달 닫기">닫기</button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../auth/store';
 import { useAlbumStore } from '../store';
@@ -122,11 +130,27 @@ const photoStore = usePhotoStore();
 const isEditingInfo = ref(false);
 const fetchError = ref<string | null>(null);
 const fileInputRefs = ref<Record<number, HTMLInputElement | null>>({});
+const deleteLoadingByPhoto = ref<Record<number, boolean>>({});
 const deselectLoadingByActivity = ref<Record<number, boolean>>({});
 const deselectError = ref<string | null>(null);
 
+const closeInfoModal = () => {
+  isEditingInfo.value = false;
+};
+
+const handleEscClose = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && isEditingInfo.value) {
+    closeInfoModal();
+  }
+};
+
 onMounted(async () => {
+  window.addEventListener('keydown', handleEscClose);
   await loadAlbumData();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEscClose);
 });
 
 const loadAlbumData = async () => {
@@ -170,12 +194,16 @@ const handlePhotoUpload = async (event: Event, activityId: number) => {
 
 const handleDeletePhoto = async (activityId: number, photoId: number) => {
   if (!albumStore.currentAlbum) return;
-  if (confirm('이 사진을 삭제하시겠습니까?')) {
-    try {
-      await photoStore.deletePhoto(albumStore.currentAlbum.albumId, activityId, photoId);
-    } catch (err: any) {
-      alert('삭제 실패: ' + (err.message || '알 수 없는 에러'));
-    }
+  if (deleteLoadingByPhoto.value[photoId]) return;
+  if (!confirm('이 사진을 삭제하시겠습니까?')) return;
+
+  deleteLoadingByPhoto.value[photoId] = true;
+  try {
+    await photoStore.deletePhoto(albumStore.currentAlbum.albumId, activityId, photoId);
+  } catch (err: any) {
+    alert('삭제 실패: ' + (err.message || '알 수 없는 에러'));
+  } finally {
+    deleteLoadingByPhoto.value[photoId] = false;
   }
 };
 
@@ -393,6 +421,43 @@ const formatDuration = (seconds: number) => {
   gap: 12px;
 }
 
+.photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--color-parchment);
+}
+
+.photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.btn-delete-photo {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background-color: var(--color-white);
+  color: var(--color-error);
+  font-size: 0.875rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.btn-delete-photo:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .upload-placeholder {
   aspect-ratio: 1;
   background-color: var(--color-parchment);
@@ -447,6 +512,48 @@ const formatDuration = (seconds: number) => {
   font-size: 1.125rem;
   font-weight: 500;
   border-radius: 12px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  min-width: 320px;
+  background: var(--color-white);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.btn-modal-close {
+  background-color: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.error-state {
+  text-align: center;
+  padding: 100px 24px;
+}
+
+.error-message {
+  color: var(--color-error);
+  margin-bottom: 16px;
+}
+
+.btn-retry {
+  background-color: var(--color-white);
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  padding: 8px 14px;
+  border-radius: 8px;
 }
 
 .loading-state, .empty-state {
