@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,6 +14,7 @@ import com.sweetbook.server.album.domain.AlbumProjectStatus;
 import com.sweetbook.server.album.domain.BookGenerationStatus;
 import com.sweetbook.server.album.repository.AlbumProjectRepository;
 import com.sweetbook.server.common.exception.BusinessException;
+import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.order.domain.Order;
 import com.sweetbook.server.order.domain.OrderStatus;
 import com.sweetbook.server.order.dto.CreateOrderApiRequest;
@@ -58,7 +60,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void 주문_생성_성공시_CREATED로_저장된다() {
+    void 주문_생성_성공시_created_상태로_저장된다() {
         User user = userRepository.save(newUser("order-ok@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_001"));
         when(sweetbookOrdersClient.createOrder(anyMap(), anyString())).thenReturn("or_001");
@@ -88,20 +90,33 @@ class OrderServiceTest {
     }
 
     @Test
+    void idempotencyKey는_앨범Id_스코프를_포함한다() {
+        User user = userRepository.save(newUser("order-scope@sweetbook.com"));
+        AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_scope_001"));
+        when(sweetbookOrdersClient.createOrder(anyMap(), anyString())).thenReturn("or_scope_001");
+
+        orderService.createOrder(user.getId(), album.getId(), sampleRequest("same-ext-ref"));
+
+        verify(sweetbookOrdersClient).createOrder(anyMap(), eq("order-" + album.getId() + "-same-ext-ref"));
+    }
+
+    @Test
     void 책이_생성되지_않은_앨범은_주문할_수_없다() {
         User user = userRepository.save(newUser("order-invalid@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newDraftAlbum(user));
 
         assertThatThrownBy(() -> orderService.createOrder(user.getId(), album.getId(), sampleRequest(null)))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     @Test
-    void 외부호출_실패시_주문상태를_FAILED로_남긴다() {
+    void 원격_호출_실패시_주문상태는_failed로_전환된다() {
         User user = userRepository.save(newUser("order-failed@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_003"));
         when(sweetbookOrdersClient.createOrder(anyMap(), anyString()))
-                .thenThrow(new BusinessException(com.sweetbook.server.common.exception.ErrorCode.SWEETBOOK_CALL_FAILED));
+                .thenThrow(new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED));
 
         assertThatThrownBy(() -> orderService.createOrder(user.getId(), album.getId(), sampleRequest("ext-fail-1")))
                 .isInstanceOf(BusinessException.class);
@@ -127,7 +142,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void webhook_상태코드_70이면_COMPLETED로_전이한다() {
+    void webhook_상태코드_70이면_completed로_전이된다() {
         User user = userRepository.save(newUser("webhook-completed@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_005"));
         Order order = orderRepository.save(Order.builder()
@@ -141,7 +156,7 @@ class OrderServiceTest {
         orderService.applyWebhookStatusUpdate(
                 "or_webhook_1",
                 70,
-                "배송 완료",
+                "DELIVERED",
                 LocalDateTime.now(),
                 "wh_001",
                 "shipping.delivered"
@@ -153,7 +168,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void webhook_역전이_상태코드는_무시한다() {
+    void webhook_역전이_코드는_무시된다() {
         User user = userRepository.save(newUser("webhook-guard@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_006"));
         Order order = orderRepository.save(Order.builder()
@@ -163,13 +178,13 @@ class OrderServiceTest {
                 .requestPayload("{\"items\":[]}")
                 .status(OrderStatus.CREATED)
                 .build());
-        order.updateRemoteStatus(40, "제작 중", LocalDateTime.now());
+        order.updateRemoteStatus(40, "IN_PRODUCTION", LocalDateTime.now());
         orderRepository.save(order);
 
         orderService.applyWebhookStatusUpdate(
                 "or_webhook_2",
                 25,
-                "PDF 준비 완료",
+                "PDF_READY",
                 LocalDateTime.now(),
                 "wh_002",
                 "production.confirmed"
@@ -180,7 +195,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void webhook_같은_delivery_id는_재처리하지_않는다() {
+    void webhook_동일_delivery_id는_중복처리하지_않는다() {
         User user = userRepository.save(newUser("webhook-dup@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_007"));
         Order order = orderRepository.save(Order.builder()
@@ -194,7 +209,7 @@ class OrderServiceTest {
         orderService.applyWebhookStatusUpdate(
                 "or_webhook_3",
                 30,
-                "제작 확정",
+                "CONFIRMED",
                 LocalDateTime.now(),
                 "wh_dup_1",
                 "production.confirmed"
@@ -203,7 +218,7 @@ class OrderServiceTest {
         orderService.applyWebhookStatusUpdate(
                 "or_webhook_3",
                 90,
-                "오류",
+                "ERROR",
                 LocalDateTime.now(),
                 "wh_dup_1",
                 "order.error"
@@ -212,6 +227,34 @@ class OrderServiceTest {
         Order updated = orderRepository.findById(order.getId()).orElseThrow();
         assertThat(updated.getRemoteOrderStatusCode()).isEqualTo(30);
         assertThat(updated.getStatus()).isEqualTo(OrderStatus.CREATED);
+    }
+
+    @Test
+    void webhook_restored는_cancelled에서_created로_복구한다() {
+        User user = userRepository.save(newUser("webhook-restored@sweetbook.com"));
+        AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_008"));
+        Order order = orderRepository.save(Order.builder()
+                .albumProject(album)
+                .orderUid("or_webhook_restore")
+                .externalRef("ext-webhook-restore")
+                .requestPayload("{\"items\":[]}")
+                .status(OrderStatus.CANCELLED)
+                .build());
+        order.updateRemoteStatus(80, "CANCELLED", LocalDateTime.now());
+        orderRepository.save(order);
+
+        orderService.applyWebhookStatusUpdate(
+                "or_webhook_restore",
+                20,
+                "PAID",
+                LocalDateTime.now(),
+                "wh_restore_001",
+                "order.restored"
+        );
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(updated.getStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(updated.getRemoteOrderStatusCode()).isEqualTo(20);
     }
 
     private User newUser(String email) {
@@ -255,7 +298,7 @@ class OrderServiceTest {
                         "홍길동",
                         "010-1234-5678",
                         "06101",
-                        "서울시 강남구 테헤란로 123",
+                        "서울특별시 강남구 테헤란로 123",
                         "4층 401호",
                         "부재시 경비실"
                 ),
