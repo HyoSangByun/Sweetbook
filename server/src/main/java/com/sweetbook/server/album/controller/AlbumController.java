@@ -10,6 +10,8 @@ import com.sweetbook.server.album.dto.SelectAlbumActivitiesRequest;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesResponse;
 import com.sweetbook.server.album.dto.UpdateAlbumRequest;
 import com.sweetbook.server.album.service.AlbumService;
+import com.sweetbook.server.common.exception.BusinessException;
+import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.common.response.ApiResponse;
 import com.sweetbook.server.order.dto.CreateOrderApiRequest;
 import com.sweetbook.server.order.dto.CreateOrderApiResponse;
@@ -43,6 +45,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
@@ -160,7 +163,15 @@ public class AlbumController {
             @RequestParam String bookSpecUid,
             @RequestParam String templateKind
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getTemplates(bookSpecUid, templateKind)));
+        String normalizedTemplateKind = templateKind == null ? "" : templateKind.trim().toLowerCase(Locale.ROOT);
+        if (!"cover".equals(normalizedTemplateKind) && !"content".equals(normalizedTemplateKind)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "templateKind must be one of: cover, content"
+            );
+        }
+
+        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getTemplates(bookSpecUid, normalizedTemplateKind)));
     }
 
     @GetMapping("/templates/{templateUid}")
