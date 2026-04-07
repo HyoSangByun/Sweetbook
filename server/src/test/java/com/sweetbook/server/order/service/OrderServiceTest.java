@@ -3,6 +3,7 @@ package com.sweetbook.server.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,7 +60,7 @@ class OrderServiceTest {
     void createOrder_success_persistsCreatedOrder() {
         User user = userRepository.save(newUser("order-ok@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_001"));
-        when(sweetbookOrdersClient.createOrder(anyMap())).thenReturn("or_001");
+        when(sweetbookOrdersClient.createOrder(anyMap(), anyString())).thenReturn("or_001");
 
         CreateOrderApiResponse response = orderService.createOrder(user.getId(), album.getId(), sampleRequest(null));
 
@@ -67,21 +68,21 @@ class OrderServiceTest {
         assertThat(response.status()).isEqualTo(OrderStatus.CREATED);
         Order saved = orderRepository.findById(response.orderId()).orElseThrow();
         assertThat(saved.getStatus()).isEqualTo(OrderStatus.CREATED);
-        verify(sweetbookOrdersClient, times(1)).createOrder(anyMap());
+        verify(sweetbookOrdersClient, times(1)).createOrder(anyMap(), anyString());
     }
 
     @Test
     void createOrder_samePayload_returnsExistingOrder() {
         User user = userRepository.save(newUser("order-idempotent@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_002"));
-        when(sweetbookOrdersClient.createOrder(anyMap())).thenReturn("or_same");
+        when(sweetbookOrdersClient.createOrder(anyMap(), anyString())).thenReturn("or_same");
 
         CreateOrderApiResponse first = orderService.createOrder(user.getId(), album.getId(), sampleRequest(null));
         CreateOrderApiResponse second = orderService.createOrder(user.getId(), album.getId(), sampleRequest(null));
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
         assertThat(second.orderUid()).isEqualTo("or_same");
-        verify(sweetbookOrdersClient, times(1)).createOrder(anyMap());
+        verify(sweetbookOrdersClient, times(1)).createOrder(anyMap(), anyString());
     }
 
     @Test
@@ -99,7 +100,7 @@ class OrderServiceTest {
     void createOrder_remoteFailure_marksOrderFailed() {
         User user = userRepository.save(newUser("order-failed@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_test_003"));
-        when(sweetbookOrdersClient.createOrder(anyMap()))
+        when(sweetbookOrdersClient.createOrder(anyMap(), anyString()))
                 .thenThrow(new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED));
 
         assertThatThrownBy(() -> orderService.createOrder(user.getId(), album.getId(), sampleRequest("ext-fail-1")))

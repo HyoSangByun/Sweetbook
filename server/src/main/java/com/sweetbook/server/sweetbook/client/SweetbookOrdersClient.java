@@ -6,7 +6,6 @@ import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
 import com.sweetbook.server.sweetbook.dto.orders.CreateOrderResponseData;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -23,12 +22,12 @@ public class SweetbookOrdersClient {
             new ParameterizedTypeReference<>() {
             };
 
-    public String createOrder(Map<String, Object> payload) {
+    public String createOrder(Map<String, Object> payload, String idempotencyKey) {
         SweetbookApiResponse<CreateOrderResponseData> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/orders")
-                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .header("Idempotency-Key", idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()

@@ -2,6 +2,7 @@ package com.sweetbook.server.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -70,7 +71,7 @@ class OrderWebhookE2ETest {
         User user = userRepository.save(newUser("e2e@sweetbook.com"));
         AlbumProject album = albumProjectRepository.save(newGeneratedAlbum(user, "bk_e2e_001"));
 
-        when(sweetbookOrdersClient.createOrder(anyMap())).thenReturn("or_e2e_001");
+        when(sweetbookOrdersClient.createOrder(anyMap(), anyString())).thenReturn("or_e2e_001");
         CreateOrderApiResponse created = orderService.createOrder(user.getId(), album.getId(), sampleRequest("ext-e2e-1"));
         assertThat(created.status()).isEqualTo(OrderStatus.CREATED);
 
