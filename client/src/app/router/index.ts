@@ -28,6 +28,18 @@ const router = createRouter({
       component: () => import('../../features/activity/pages/ActivityListPage.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/albums/:albumId/orders',
+      name: 'order-list',
+      component: () => import('../../features/order/pages/OrderListPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/albums/:albumId/orders/:orderId',
+      name: 'order-detail',
+      component: () => import('../../features/order/pages/OrderDetailPage.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 });
 

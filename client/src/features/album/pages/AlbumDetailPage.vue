@@ -2,7 +2,7 @@
   <div class="album-detail-page">
     <header class="page-header">
       <div class="container header-content">
-        <router-link to="/" class="btn-back">← 활동 목록으로</router-link>
+        <router-link to="/" class="btn-back">활동 목록으로</router-link>
         <h1 class="logo">SweetBook</h1>
         <div class="user-actions">
           <button @click="handleLogout" class="btn-logout">로그아웃</button>
@@ -31,7 +31,7 @@
         <h3 class="section-subtitle">선택된 활동 ({{ albumStore.currentAlbum.selectedActivityCount }})</h3>
         
         <div v-if="albumStore.currentAlbum.selectedActivities.length === 0" class="empty-state">
-          활동 목록에서 활동을 선택해주세요.
+          활동 목록에서 활동을 선택해 주세요.
         </div>
         
         <div v-else class="activity-list">
@@ -56,7 +56,7 @@
                     class="btn-delete-photo"
                     :disabled="deleteLoadingByPhoto[photo.photoId]"
                   >
-                    ×
+                    횞
                   </button>
                 </div>
                 <div class="upload-placeholder" @click="triggerPhotoUpload(activity.activityId)">
@@ -91,7 +91,7 @@
             <span class="status-label">진행 상태</span>
             <span class="status-value">{{ albumStore.currentAlbum.status }}</span>
           </div>
-          <button v-if="albumStore.currentAlbum.status === 'DRAFT'" class="btn-order">책 주문하기</button>
+          <button v-if="albumStore.currentAlbum.status === 'DRAFT'" class="btn-order" @click="goToOrderList">주문하기</button>
         </div>
       </section>
     </main>
@@ -185,7 +185,7 @@ const handlePhotoUpload = async (event: Event, activityId: number) => {
     try {
       await photoStore.uploadPhoto(albumStore.currentAlbum.albumId, activityId, target.files[0]);
     } catch (err: any) {
-      alert('업로드 실패: ' + (err.message || '알 수 없는 에러'));
+      alert('업로드 실패: ' + (err.message || '알 수 없는 오류'));
     } finally {
       target.value = ''; // Reset file input
     }
@@ -201,7 +201,7 @@ const handleDeletePhoto = async (activityId: number, photoId: number) => {
   try {
     await photoStore.deletePhoto(albumStore.currentAlbum.albumId, activityId, photoId);
   } catch (err: any) {
-    alert('삭제 실패: ' + (err.message || '알 수 없는 에러'));
+    alert('삭제 실패: ' + (err.message || '알 수 없는 오류'));
   } finally {
     deleteLoadingByPhoto.value[photoId] = false;
   }
@@ -231,6 +231,11 @@ const handleDeselect = async (activityId: number) => {
   } finally {
     deselectLoadingByActivity.value[activityId] = false;
   }
+};
+
+const goToOrderList = () => {
+  if (!albumStore.currentAlbum) return;
+  router.push({ name: 'order-list', params: { albumId: albumStore.currentAlbum.albumId } });
 };
 
 const handleLogout = () => {
@@ -562,3 +567,4 @@ const formatDuration = (seconds: number) => {
   color: var(--color-stone-gray);
 }
 </style>
+

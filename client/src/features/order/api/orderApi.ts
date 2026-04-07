@@ -1,22 +1,41 @@
-import client from '../../../shared/api/client';
-import type { 
-  CreateOrderRequest, 
-  OrderSummaryResponse, 
-  OrderDetailResponse, 
-  UpdateShippingRequest 
-} from '../types';
+﻿import client from '../../../shared/api/client';
+import type { OrderRequest, OrderResponse, ShippingUpdateRequest } from '../types';
 
-export const createOrder = (albumId: number, data: CreateOrderRequest) => 
-  client.post<OrderDetailResponse>(`/albums/${albumId}/orders`, data);
+const unwrap = <T>(response: T | { data: T }) => {
+  if (typeof response === 'object' && response !== null && 'data' in response) {
+    return response.data;
+  }
+  return response;
+};
 
-export const listOrders = (albumId: number) => 
-  client.get<OrderSummaryResponse[]>(`/albums/${albumId}/orders`);
+export const orderApi = {
+  createOrder: async (albumId: number, data: OrderRequest) => {
+    const response = await client.post<OrderResponse>(`/albums/${albumId}/orders`, data);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
+  },
 
-export const getOrder = (albumId: number, orderId: number) => 
-  client.get<OrderDetailResponse>(`/albums/${albumId}/orders/${orderId}`);
+  getOrders: async (albumId: number) => {
+    const response = await client.get<OrderResponse[]>(`/albums/${albumId}/orders`);
+    return unwrap<OrderResponse[]>(response as OrderResponse[] | { data: OrderResponse[] });
+  },
 
-export const cancelOrder = (albumId: number, orderId: number, reason: string) => 
-  client.post<OrderDetailResponse>(`/albums/${albumId}/orders/${orderId}/cancel`, { reason });
+  getOrder: async (albumId: number, orderId: number) => {
+    const response = await client.get<OrderResponse>(`/albums/${albumId}/orders/${orderId}`);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
+  },
 
-export const updateShipping = (albumId: number, orderId: number, data: UpdateShippingRequest) => 
-  client.patch<OrderDetailResponse>(`/albums/${albumId}/orders/${orderId}/shipping`, data);
+  cancelOrder: async (albumId: number, orderId: number) => {
+    const response = await client.post<OrderResponse>(`/albums/${albumId}/orders/${orderId}/cancel`);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
+  },
+
+  updateShipping: async (
+    albumId: number,
+    orderId: number,
+    data: ShippingUpdateRequest
+  ) => {
+    const response = await client.patch<OrderResponse>(`/albums/${albumId}/orders/${orderId}/shipping`, data);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
+  },
+};
+
