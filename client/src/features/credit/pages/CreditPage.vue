@@ -36,25 +36,25 @@ const goBack = () => {
 <template>
   <div class="credit-page container">
     <header class="page-header">
-      <button class="back-button" type="button" @click="goBack">대시보드로</button>
-      <h1 class="page-title">크레딧</h1>
+      <button class="back-button" type="button" @click="goBack">Back to dashboard</button>
+      <h1 class="page-title">Credits</h1>
     </header>
 
     <section class="card balance-card">
       <div class="card-head">
-        <h2>현재 잔액</h2>
+        <h2>Current balance</h2>
         <button type="button" class="refresh-button" :disabled="creditStore.isFetchingBalance" @click="creditStore.fetchBalance">
-          {{ creditStore.isFetchingBalance ? '갱신 중...' : '새로고침' }}
+          {{ creditStore.isFetchingBalance ? 'Refreshing...' : 'Refresh' }}
         </button>
       </div>
 
-      <div v-if="creditStore.isFetchingBalance && !creditStore.balance" class="state-block">잔액을 불러오는 중입니다...</div>
+      <div v-if="creditStore.isFetchingBalance && !creditStore.balance" class="state-block">Loading balance...</div>
       <div v-else-if="creditStore.fetchError" class="state-block error">{{ creditStore.fetchError }}</div>
       <div v-else-if="creditStore.balance" class="balance-content">
         <p class="balance-amount">{{ formattedBalance }}</p>
-        <p class="meta">환경: {{ environmentLabel }}</p>
+        <p class="meta">Environment: {{ environmentLabel }}</p>
       </div>
-      <div v-else class="state-block">잔액 정보가 없습니다.</div>
+      <div v-else class="state-block">No balance information.</div>
     </section>
   </div>
 </template>
