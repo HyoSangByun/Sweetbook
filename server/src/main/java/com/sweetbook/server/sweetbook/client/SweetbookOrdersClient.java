@@ -6,6 +6,7 @@ import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
 import com.sweetbook.server.sweetbook.dto.orders.CreateOrderResponseData;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class SweetbookOrdersClient {
 
@@ -34,6 +36,7 @@ public class SweetbookOrdersClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "createOrder", "POST /v1/orders", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to create order.");
             be.initCause(e);
             throw be;
@@ -63,6 +66,7 @@ public class SweetbookOrdersClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "estimateOrder", "POST /v1/orders/estimate", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to estimate order.");
             be.initCause(e);
             throw be;
@@ -85,6 +89,7 @@ public class SweetbookOrdersClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "cancelOrder", "POST /v1/orders/{orderUid}/cancel", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to cancel order.");
             be.initCause(e);
             throw be;
@@ -107,6 +112,7 @@ public class SweetbookOrdersClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "updateShipping", "PATCH /v1/orders/{orderUid}/shipping", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to update order shipping.");
             be.initCause(e);
             throw be;

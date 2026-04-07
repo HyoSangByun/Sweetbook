@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
@@ -25,6 +26,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class SweetbookBooksClient {
 
@@ -46,6 +48,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "createBook", "POST /v1/books", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to create book via Sweetbook API."
@@ -75,6 +78,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "addCover", "POST /v1/books/{bookUid}/cover", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to add book cover via Sweetbook API."
@@ -109,6 +113,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "addContent", "POST /v1/books/{bookUid}/contents", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to add book content via Sweetbook API."
@@ -137,6 +142,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "uploadPhoto", "POST /v1/books/{bookUid}/photos", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to upload photo via Sweetbook API."
@@ -161,6 +167,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "finalizeBook", "POST /v1/books/{bookUid}/finalization", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to finalize book via Sweetbook API."
@@ -183,6 +190,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "deleteBook", "DELETE /v1/books/{bookUid}", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to delete temporary book via Sweetbook API."
@@ -204,6 +212,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getBookSpecs", "GET /v1/book-specs", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
             be.initCause(e);
             throw be;
@@ -231,6 +240,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getBookSpecDetail", "GET /v1/book-specs/{bookSpecUid}", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book spec detail.");
             be.initCause(e);
             throw be;
@@ -262,6 +272,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getTemplates", "GET /v1/templates", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch templates.");
             be.initCause(e);
             throw be;
@@ -289,6 +300,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getTemplateDetail", "GET /v1/templates/{templateUid}", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch template detail.");
             be.initCause(e);
             throw be;
