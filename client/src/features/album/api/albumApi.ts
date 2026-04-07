@@ -25,6 +25,9 @@ export const deselectActivity = (albumId: number, activityId: number) =>
 export const getBookSpecs = () =>
   client.get<any[]>('/albums/book-specs');
 
+export const getBookSpecDetail = (bookSpecUid: string) =>
+  client.get<any>(`/albums/book-specs/${encodeURIComponent(bookSpecUid)}`);
+
 export const getTemplates = (bookSpecUid: string, templateKind: 'cover' | 'content') =>
   client.get<any[]>(`/albums/templates?bookSpecUid=${encodeURIComponent(bookSpecUid)}&templateKind=${templateKind}`);
 
@@ -44,5 +47,8 @@ export const estimateBookOrder = (
     currency: string;
   }>(`/albums/${albumId}/book/estimate`, payload);
 
-export const generateBook = (albumId: number) =>
-  client.post<any>(`/albums/${albumId}/book`);
+export const generateBookWithConfig = (
+  albumId: number,
+  payload: { title: string; bookSpecUid: string; coverTemplateUid: string; contentTemplateUid: string }
+) =>
+  client.post<any>(`/albums/${albumId}/book`, payload);
