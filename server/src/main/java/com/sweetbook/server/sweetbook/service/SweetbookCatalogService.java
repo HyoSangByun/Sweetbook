@@ -16,6 +16,10 @@ public class SweetbookCatalogService {
         return sweetbookBooksClient.getBookSpecs();
     }
 
+    public Map<String, Object> getBookSpecDetail(String bookSpecUid) {
+        return sweetbookBooksClient.getBookSpecDetail(bookSpecUid);
+    }
+
     public List<Map<String, Object>> getTemplates(String bookSpecUid, String templateKind) {
         return sweetbookBooksClient.getTemplates(bookSpecUid, templateKind);
     }

@@ -223,6 +223,34 @@ public class SweetbookBooksClient {
         return List.of();
     }
 
+    public Map<String, Object> getBookSpecDetail(String bookSpecUid) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri("/v1/book-specs/{bookSpecUid}", bookSpecUid)
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book spec detail.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book spec detail.");
+        }
+
+        Object bookSpec = response.data().get("bookSpec");
+        if (bookSpec instanceof Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            entry -> String.valueOf(entry.getKey()),
+                            Map.Entry::getValue
+                    ));
+        }
+        return response.data();
+    }
+
     public List<Map<String, Object>> getTemplates(String bookSpecUid, String templateKind) {
         SweetbookApiResponse<Map<String, Object>> response;
         try {

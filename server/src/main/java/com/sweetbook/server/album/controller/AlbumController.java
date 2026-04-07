@@ -6,6 +6,7 @@ import com.sweetbook.server.album.dto.BookEstimateResponse;
 import com.sweetbook.server.album.dto.CreateAlbumRequest;
 import com.sweetbook.server.album.dto.DeselectAlbumActivityResponse;
 import com.sweetbook.server.album.dto.GenerateBookResponse;
+import com.sweetbook.server.album.dto.GenerateBookRequest;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesRequest;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesResponse;
 import com.sweetbook.server.album.dto.UpdateAlbumRequest;
@@ -157,6 +158,19 @@ public class AlbumController {
         return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getBookSpecs()));
     }
 
+    @GetMapping("/book-specs/{bookSpecUid}")
+    @Operation(summary = "Sweetbook 판형 상세 조회", description = "선택한 판형의 상세 정보를 조회합니다.")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getBookSpecDetail(@PathVariable String bookSpecUid) {
+        String normalizedBookSpecUid = bookSpecUid == null ? "" : bookSpecUid.trim();
+        if (normalizedBookSpecUid.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "bookSpecUid must be provided and non-blank"
+            );
+        }
+        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getBookSpecDetail(normalizedBookSpecUid)));
+    }
+
     @GetMapping("/templates")
     @Operation(summary = "Sweetbook 템플릿 목록 조회", description = "선택한 판형과 템플릿 종류로 템플릿 목록을 조회합니다.")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getTemplates(
@@ -194,10 +208,11 @@ public class AlbumController {
     @Operation(summary = "책 생성", description = "앨범 기준으로 Sweetbook 책을 생성하고 최종 확정합니다.")
     public ResponseEntity<ApiResponse<GenerateBookResponse>> generateBook(
             @AuthenticationPrincipal AppUserPrincipal principal,
-            @PathVariable Long albumId
+            @PathVariable Long albumId,
+            @Valid @RequestBody GenerateBookRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
-                albumBookGenerationService.generateBook(principal.getUserId(), albumId)
+                albumBookGenerationService.generateBook(principal.getUserId(), albumId, request)
         ));
     }
 
