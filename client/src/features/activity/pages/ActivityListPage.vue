@@ -16,7 +16,7 @@
         <div class="section-header">
           <h2 class="section-title">내 활동</h2>
           <div class="filter-actions">
-            <select v-model="selectedMonth" @change="handleMonthChange" class="month-select">
+            <select v-if="hasActivityData" v-model="selectedMonth" @change="handleMonthChange" class="month-select">
               <option v-for="month in activityStore.months" :key="month" :value="month">
                 {{ month }}
               </option>
@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../auth/store';
 import { useActivityStore } from '../store';
@@ -96,6 +96,7 @@ const albumStore = useAlbumStore();
 const selectedMonth = ref('');
 const selectedActivityIds = ref<number[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
+const hasActivityData = computed(() => activityStore.months.length > 0);
 
 onMounted(async () => {
   await activityStore.fetchMonths();
