@@ -4,25 +4,29 @@
       <h1 class="auth-title">SweetBook</h1>
       <div class="auth-card">
         <h2 class="card-title">로그인</h2>
+        <div v-if="showSignupSuccess" class="success-message" role="status" aria-live="polite">
+          <span>회원가입이 완료되었습니다. 로그인해 주세요.</span>
+          <button type="button" class="btn-dismiss" @click="dismissSignupSuccess">닫기</button>
+        </div>
         <form @submit.prevent="handleLogin" class="auth-form">
           <div class="form-group">
             <label for="email">이메일</label>
-            <input 
-              id="email" 
-              v-model="email" 
-              type="email" 
-              placeholder="email@example.com" 
+            <input
+              id="email"
+              v-model="email"
+              type="email"
+              placeholder="email@example.com"
               required
               :disabled="isLoading"
             />
           </div>
           <div class="form-group">
             <label for="password">비밀번호</label>
-            <input 
-              id="password" 
-              v-model="password" 
-              type="password" 
-              placeholder="••••••••" 
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              placeholder="••••••••"
               required
               :disabled="isLoading"
             />
@@ -44,10 +48,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../store';
 
+const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
@@ -55,6 +60,27 @@ const email = ref('');
 const password = ref('');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
+const isSignupSuccessDismissed = ref(false);
+
+const isSignupSuccess = computed(() => route.query.signup === 'success');
+const showSignupSuccess = computed(() => isSignupSuccess.value && !isSignupSuccessDismissed.value);
+
+const dismissSignupSuccess = async () => {
+  isSignupSuccessDismissed.value = true;
+  const nextQuery = { ...route.query };
+  delete nextQuery.signup;
+  await router.replace({ query: nextQuery });
+};
+
+const clearSuccessTimer = setTimeout(() => {
+  if (showSignupSuccess.value) {
+    dismissSignupSuccess();
+  }
+}, 5000);
+
+onBeforeUnmount(() => {
+  clearTimeout(clearSuccessTimer);
+});
 
 const handleLogin = async () => {
   if (isLoading.value) return;
@@ -67,7 +93,7 @@ const handleLogin = async () => {
     });
     router.push({ name: 'dashboard' });
   } catch (err: any) {
-    error.value = err.message || '로그인에 실패했습니다. 다시 시도해주세요.';
+    error.value = err.message || '로그인에 실패했습니다. 다시 시도해 주세요.';
   } finally {
     isLoading.value = false;
   }
@@ -108,6 +134,26 @@ const handleLogin = async () => {
   font-size: 1.5rem;
   margin-bottom: 1.5rem;
   text-align: center;
+}
+
+.success-message {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #e7f7eb;
+  color: #1f6132;
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-dismiss {
+  background: transparent;
+  color: #1f6132;
+  padding: 2px 6px;
+  font-size: 0.75rem;
 }
 
 .auth-form {
