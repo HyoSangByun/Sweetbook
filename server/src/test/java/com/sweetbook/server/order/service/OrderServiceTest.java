@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -68,7 +69,8 @@ class OrderServiceTest {
         assertThat(response.status()).isEqualTo(OrderStatus.CREATED);
         Order saved = orderRepository.findById(response.orderId()).orElseThrow();
         assertThat(saved.getStatus()).isEqualTo(OrderStatus.CREATED);
-        verify(sweetbookOrdersClient, times(1)).createOrder(anyMap(), anyString());
+        verify(sweetbookOrdersClient, times(1))
+                .createOrder(anyMap(), eq("order-" + album.getId() + "-" + response.externalRef()));
     }
 
     @Test

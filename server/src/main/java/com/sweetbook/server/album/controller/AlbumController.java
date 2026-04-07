@@ -163,6 +163,14 @@ public class AlbumController {
             @RequestParam String bookSpecUid,
             @RequestParam String templateKind
     ) {
+        String normalizedBookSpecUid = bookSpecUid == null ? "" : bookSpecUid.trim();
+        if (normalizedBookSpecUid.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "bookSpecUid must be provided and non-blank"
+            );
+        }
+
         String normalizedTemplateKind = templateKind == null ? "" : templateKind.trim().toLowerCase(Locale.ROOT);
         if (!"cover".equals(normalizedTemplateKind) && !"content".equals(normalizedTemplateKind)) {
             throw new BusinessException(
@@ -171,7 +179,9 @@ public class AlbumController {
             );
         }
 
-        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getTemplates(bookSpecUid, normalizedTemplateKind)));
+        return ResponseEntity.ok(ApiResponse.ok(
+                sweetbookCatalogService.getTemplates(normalizedBookSpecUid, normalizedTemplateKind)
+        ));
     }
 
     @GetMapping("/templates/{templateUid}")

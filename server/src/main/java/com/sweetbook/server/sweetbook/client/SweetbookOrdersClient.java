@@ -46,12 +46,20 @@ public class SweetbookOrdersClient {
     }
 
     public Map<String, Object> estimateOrder(String bookUid, int quantity) {
+        String normalizedBookUid = bookUid == null ? "" : bookUid.trim();
+        if (normalizedBookUid.isEmpty()) {
+            throw new IllegalArgumentException("bookUid must be provided and non-blank.");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be greater than 0.");
+        }
+
         SweetbookApiResponse<Map<String, Object>> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/orders/estimate")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("items", List.of(Map.of("bookUid", bookUid, "quantity", quantity))))
+                    .body(Map.of("items", List.of(Map.of("bookUid", normalizedBookUid, "quantity", quantity))))
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
