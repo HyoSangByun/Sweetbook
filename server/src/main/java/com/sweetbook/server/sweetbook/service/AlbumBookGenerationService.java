@@ -6,6 +6,7 @@ import com.sweetbook.server.album.domain.AlbumProject;
 import com.sweetbook.server.album.domain.BookGenerationStatus;
 import com.sweetbook.server.album.dto.BookEstimateRequest;
 import com.sweetbook.server.album.dto.BookEstimateResponse;
+import com.sweetbook.server.album.dto.GenerateBookRequest;
 import com.sweetbook.server.album.dto.GenerateBookResponse;
 import com.sweetbook.server.album.repository.AlbumActivityRepository;
 import com.sweetbook.server.album.repository.AlbumProjectRepository;
@@ -15,13 +16,13 @@ import com.sweetbook.server.photo.domain.ActivityPhoto;
 import com.sweetbook.server.photo.repository.ActivityPhotoRepository;
 import com.sweetbook.server.sweetbook.client.SweetbookBooksClient;
 import com.sweetbook.server.sweetbook.client.SweetbookOrdersClient;
-import com.sweetbook.server.sweetbook.config.SweetbookProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,30 +35,33 @@ public class AlbumBookGenerationService {
 
     private static final String COVER_TEMPLATE_UID = "40nimglmWLSh";
     private static final String MONTH_START_TEMPLATE_UID = "7kV0VVvWlwNI";
-    private static final String CONTENT_TEMPLATE_WITH_IMAGE = "1XtN1225R7wN";
-    private static final String CONTENT_TEMPLATE_NO_IMAGE = "5ZpsyEJW5PZW";
 
     private final AlbumProjectRepository albumProjectRepository;
     private final AlbumActivityRepository albumActivityRepository;
     private final ActivityPhotoRepository activityPhotoRepository;
     private final SweetbookBooksClient sweetbookBooksClient;
     private final SweetbookOrdersClient sweetbookOrdersClient;
-    private final SweetbookProperties sweetbookProperties;
     private final PlatformTransactionManager transactionManager;
 
-    public GenerateBookResponse generateBook(Long userId, Long albumId) {
+    public GenerateBookResponse generateBook(Long userId, Long albumId, GenerateBookRequest request) {
         GenerationPreparation preparation = prepareGeneration(userId, albumId);
         if (preparation.alreadyGenerated()) {
-            return buildGeneratedResponse(preparation);
+            return buildGeneratedResponse(preparation, request.coverTemplateUid(), request.contentTemplateUid());
         }
 
+        validateTemplatesForBookSpec(
+                request.bookSpecUid(),
+                request.coverTemplateUid(),
+                request.contentTemplateUid()
+        );
+
         String bookUid = sweetbookBooksClient.createBook(
-                preparation.title(),
-                sweetbookProperties.bookSpecUid(),
+                request.title(),
+                request.bookSpecUid(),
                 preparation.externalRef()
         );
 
-        sweetbookBooksClient.addCover(bookUid, COVER_TEMPLATE_UID, buildCoverParameters(preparation));
+        sweetbookBooksClient.addCover(bookUid, request.coverTemplateUid(), buildCoverParameters(preparation, request.title()));
         sweetbookBooksClient.addContent(bookUid, MONTH_START_TEMPLATE_UID, buildMonthStartParameters(preparation), "page");
 
         for (ActivityPageData activityPage : preparation.activityPages()) {
@@ -66,12 +70,12 @@ public class AlbumBookGenerationService {
                 resolveUploadedPhotoFileName(bookUid, activityPage.albumActivityId())
                         .ifPresent(fileName -> parameters.put("photo", fileName));
             }
-            sweetbookBooksClient.addContent(bookUid, preparation.contentTemplateUid(), parameters, "page");
+            sweetbookBooksClient.addContent(bookUid, request.contentTemplateUid(), parameters, "page");
         }
 
         sweetbookBooksClient.finalizeBook(bookUid);
 
-        return markGenerated(userId, albumId, preparation, bookUid);
+        return markGenerated(userId, albumId, preparation, request, bookUid);
     }
 
     public BookEstimateResponse estimateOrder(Long userId, Long albumId, BookEstimateRequest request) {
@@ -130,7 +134,6 @@ public class AlbumBookGenerationService {
             }
 
             boolean hasPhoto = activityPhotoRepository.existsByAlbumActivityAlbumProjectId(albumId);
-            String contentTemplateUid = hasPhoto ? CONTENT_TEMPLATE_WITH_IMAGE : CONTENT_TEMPLATE_NO_IMAGE;
             String externalRef = resolveExternalRef(albumProject);
             List<ActivityPageData> activityPages = mapActivityPages(albumActivities);
 
@@ -149,7 +152,6 @@ public class AlbumBookGenerationService {
                             albumProject.getMonthlyReview(),
                             externalRef,
                             hasPhoto,
-                            contentTemplateUid,
                             activityPages,
                             true,
                             albumProject.getBookUid(),
@@ -173,7 +175,6 @@ public class AlbumBookGenerationService {
                         albumProject.getMonthlyReview(),
                         externalRef,
                         hasPhoto,
-                        contentTemplateUid,
                         activityPages,
                         true,
                         albumProject.getBookUid(),
@@ -193,7 +194,6 @@ public class AlbumBookGenerationService {
                     albumProject.getMonthlyReview(),
                     externalRef,
                     hasPhoto,
-                    contentTemplateUid,
                     activityPages,
                     false,
                     null,
@@ -203,7 +203,13 @@ public class AlbumBookGenerationService {
         });
     }
 
-    private GenerateBookResponse markGenerated(Long userId, Long albumId, GenerationPreparation preparation, String bookUid) {
+    private GenerateBookResponse markGenerated(
+            Long userId,
+            Long albumId,
+            GenerationPreparation preparation,
+            GenerateBookRequest request,
+            String bookUid
+    ) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
             AlbumProject albumProject = albumProjectRepository.findByIdAndUserId(albumId, userId)
@@ -226,13 +232,12 @@ public class AlbumBookGenerationService {
                         preparation.monthlyReview(),
                         preparation.externalRef(),
                         preparation.hasPhoto(),
-                        preparation.contentTemplateUid(),
                         preparation.activityPages(),
                         true,
                         albumProject.getBookUid(),
                         albumProject.getBookStatus(),
                         albumProject.getBookGeneratedAt()
-                ));
+                ), request.coverTemplateUid(), request.contentTemplateUid());
             }
 
             LocalDateTime generatedAt = LocalDateTime.now();
@@ -243,24 +248,28 @@ public class AlbumBookGenerationService {
                     bookUid,
                     albumProject.getBookStatus(),
                     preparation.hasPhoto(),
-                    COVER_TEMPLATE_UID,
+                    request.coverTemplateUid(),
                     MONTH_START_TEMPLATE_UID,
-                    preparation.contentTemplateUid(),
+                    request.contentTemplateUid(),
                     preparation.activityPages().size() + 1,
                     generatedAt
             );
         });
     }
 
-    private GenerateBookResponse buildGeneratedResponse(GenerationPreparation preparation) {
+    private GenerateBookResponse buildGeneratedResponse(
+            GenerationPreparation preparation,
+            String coverTemplateUid,
+            String contentTemplateUid
+    ) {
         return new GenerateBookResponse(
                 preparation.albumId(),
                 preparation.bookUid(),
                 preparation.bookStatus(),
                 preparation.hasPhoto(),
-                COVER_TEMPLATE_UID,
+                coverTemplateUid,
                 MONTH_START_TEMPLATE_UID,
-                preparation.contentTemplateUid(),
+                contentTemplateUid,
                 preparation.activityPages().size() + 1,
                 preparation.bookGeneratedAt()
         );
@@ -290,9 +299,9 @@ public class AlbumBookGenerationService {
                 .toList();
     }
 
-    private Map<String, Object> buildCoverParameters(GenerationPreparation preparation) {
+    private Map<String, Object> buildCoverParameters(GenerationPreparation preparation, String title) {
         Map<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("title", preparation.title());
+        parameters.put("title", title);
         parameters.put("subtitle", preparation.subtitle());
         parameters.put("month", preparation.month());
         return parameters;
@@ -346,6 +355,39 @@ public class AlbumBookGenerationService {
         }
     }
 
+    private void validateTemplatesForBookSpec(String bookSpecUid, String coverTemplateUid, String contentTemplateUid) {
+        Set<String> coverTemplateUids = sweetbookBooksClient.getTemplates(bookSpecUid, "cover").stream()
+                .map(template -> String.valueOf(template.get("templateUid")))
+                .filter(uid -> uid != null && !uid.isBlank() && !"null".equals(uid))
+                .collect(java.util.stream.Collectors.toSet());
+
+        if (!coverTemplateUids.contains(coverTemplateUid)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "coverTemplateUid is not available for the selected bookSpecUid."
+            );
+        }
+
+        Set<String> contentTemplateUids = sweetbookBooksClient.getTemplates(bookSpecUid, "content").stream()
+                .map(template -> String.valueOf(template.get("templateUid")))
+                .filter(uid -> uid != null && !uid.isBlank() && !"null".equals(uid))
+                .collect(java.util.stream.Collectors.toSet());
+
+        if (!contentTemplateUids.contains(contentTemplateUid)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "contentTemplateUid is not available for the selected bookSpecUid."
+            );
+        }
+
+        if (!contentTemplateUids.contains(MONTH_START_TEMPLATE_UID)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "MONTH_START_TEMPLATE_UID is not available for the selected bookSpecUid."
+            );
+        }
+    }
+
     private record GenerationPreparation(
             Long albumId,
             String title,
@@ -354,7 +396,6 @@ public class AlbumBookGenerationService {
             String monthlyReview,
             String externalRef,
             boolean hasPhoto,
-            String contentTemplateUid,
             List<ActivityPageData> activityPages,
             boolean alreadyGenerated,
             String bookUid,

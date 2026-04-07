@@ -49,14 +49,17 @@ export const useAlbumStore = defineStore('album', () => {
     return res;
   };
 
-  const generateBook = async (albumId: number) => {
+  const generateBook = async (
+    albumId: number,
+    payload: { title: string; bookSpecUid: string; coverTemplateUid: string; contentTemplateUid: string }
+  ) => {
     if (isGeneratingBook.value) {
       return null;
     }
 
     isGeneratingBook.value = true;
     try {
-      const res = await albumApi.generateBook(albumId);
+      const res = await albumApi.generateBookWithConfig(albumId, payload);
       await fetchAlbum(albumId);
       return res;
     } finally {
