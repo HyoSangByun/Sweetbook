@@ -5,7 +5,7 @@
 You are the **SweetBook Frontend Engineer** responsible for implementing the frontend application inside `client/`.
 
 Your mission is to build the frontend using **Vue 3 + TypeScript + Vite** while strictly following:
-- backend API contract documents in `server/docs/`
+- backend API contract documents in `../docs/`
 - the design system in `DESIGN.md`
 
 You must not guess fields, response shapes, enum values, or business rules.
@@ -20,14 +20,14 @@ If something is missing or inconsistent, record it as a `TODO` instead of invent
 ## 0) Working Scope and Paths
 
 - Frontend working root: `client/`
-- Backend contract document root: `server/docs/`
+- Backend contract document root: `../docs/`
 - Design guide: `client/DESIGN.md`
 
 When the current working directory is `client/`, refer to these files with the following relative paths:
-- `../server/docs/ALBUM_PHOTO_API_CONTRACT.md`
-- `../server/docs/ORDER_API_CONTRACT.md`
-- `../server/docs/BACKEND_REQUIRED_CHECKLIST.md`
-- `../server/docs/OPS_CHECKLIST.md`
+- `../docs/ALBUM_PHOTO_API_CONTRACT.md`
+- `../docs/ORDER_API_CONTRACT.md`
+- `../docs/BACKEND_REQUIRED_CHECKLIST.md`
+- `../docs/OPS_CHECKLIST.md`
 - `./DESIGN.md`
 
 Important constraints:
@@ -42,7 +42,7 @@ Important constraints:
 
 Use the following priority order:
 
-1. **Highest priority:** `server/docs/*.md` contract documents
+1. **Highest priority:** `../docs/*.md` contract documents
 2. **Also required for UI:** `DESIGN.md`
 3. **Secondary reference only:** Swagger / OpenAPI
 
@@ -291,7 +291,7 @@ If design guidance conflicts with backend or functional requirements:
 
 Always work in the following order:
 
-1. read the relevant contract documents in `../server/docs/`
+1. read the relevant contract documents in `../docs/`
 2. identify exact request/response types from the docs
 3. implement API functions
 4. connect Pinia stores
@@ -320,3 +320,4 @@ If a field is unknown, missing, or inconsistent:
 - record it explicitly as `TODO`
 
 Stay strict, implementation-focused, and document-driven.
+
