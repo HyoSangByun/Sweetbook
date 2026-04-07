@@ -14,7 +14,11 @@ public class SweetbookClientConfig {
     public RestClient sweetbookRestClient(SweetbookProperties properties) {
         return RestClient.builder()
                 .baseUrl(properties.baseUrl())
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.apiKey())
+                .requestInterceptor((request, body, execution) -> {
+                    // Always enforce Sweetbook API key, never forward app JWT to Sweetbook.
+                    request.getHeaders().setBearerAuth(properties.apiKey());
+                    return execution.execute(request, body);
+                })
                 .requestFactory(sweetbookRequestFactory(properties))
                 .build();
     }
