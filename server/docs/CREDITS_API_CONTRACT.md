@@ -4,6 +4,7 @@
 - Base Path: `/api`
 - 인증: `Authorization: Bearer {accessToken}` 필수
 - 응답 래퍼: `ApiResponse<T>`
+- 날짜/시간 포맷: **ISO-8601 오프셋 포함** (`YYYY-MM-DDTHH:MM:SS+09:00`)
 
 ## 1) 크레딧 잔액 조회
 - `GET /api/credits`
@@ -12,8 +13,8 @@
   - `balance`: 현재 잔액(원)
   - `currency`: 통화(`KRW`)
   - `env`: 환경(`test` 또는 `live`)
-  - `createdAt`: 계정 생성 시각
-  - `updatedAt`: 잔액 마지막 변경 시각
+  - `createdAt`: 계정 생성 시각 (ISO-8601 with offset)
+  - `updatedAt`: 잔액 마지막 변경 시각 (ISO-8601 with offset)
 
 ### 예시
 ```json
@@ -24,8 +25,8 @@
     "balance": 100000,
     "currency": "KRW",
     "env": "test",
-    "createdAt": "2026-01-01T00:00:00",
-    "updatedAt": "2026-03-01T10:00:00"
+    "createdAt": "2026-01-01T00:00:00+09:00",
+    "updatedAt": "2026-03-01T10:00:00+09:00"
   },
   "error": null,
   "timestamp": "2026-04-07T16:00:00+09:00"
