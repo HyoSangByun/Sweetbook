@@ -32,10 +32,11 @@ public class CreditService {
     }
 
     public ChargeCreditResponse chargeSandboxCredits(ChargeCreditRequest request) {
-        String idempotencyKey = resolveIdempotencyKey(request);
+        String normalizedMemo = normalizeMemo(request.memo());
+        String idempotencyKey = resolveIdempotencyKey(request, normalizedMemo);
         SandboxChargeResponseData data = sweetbookCreditsClient.chargeSandboxCredits(
                 request.amount(),
-                request.memo(),
+                normalizedMemo,
                 idempotencyKey
         );
         return new ChargeCreditResponse(
@@ -46,12 +47,16 @@ public class CreditService {
         );
     }
 
-    private String resolveIdempotencyKey(ChargeCreditRequest request) {
+    private String resolveIdempotencyKey(ChargeCreditRequest request, String normalizedMemo) {
         if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
             return request.idempotencyKey().trim();
         }
-        String raw = request.amount() + "|" + (request.memo() == null ? "" : request.memo().trim());
+        String raw = request.amount() + "|" + normalizedMemo;
         return "credit-charge-" + sha256(raw).substring(0, 24);
+    }
+
+    private String normalizeMemo(String memo) {
+        return memo == null ? "" : memo.trim();
     }
 
     private String sha256(String value) {
