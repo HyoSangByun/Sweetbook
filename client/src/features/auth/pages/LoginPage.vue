@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../store';
 
@@ -72,14 +72,30 @@ const dismissSignupSuccess = async () => {
   await router.replace({ query: nextQuery });
 };
 
-const clearSuccessTimer = setTimeout(() => {
-  if (showSignupSuccess.value) {
-    dismissSignupSuccess();
-  }
-}, 5000);
+let clearSuccessTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(
+  showSignupSuccess,
+  (visible) => {
+    if (clearSuccessTimer) {
+      clearTimeout(clearSuccessTimer);
+      clearSuccessTimer = null;
+    }
+
+    if (visible) {
+      clearSuccessTimer = setTimeout(() => {
+        dismissSignupSuccess();
+      }, 5000);
+    }
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(() => {
-  clearTimeout(clearSuccessTimer);
+  if (clearSuccessTimer) {
+    clearTimeout(clearSuccessTimer);
+    clearSuccessTimer = null;
+  }
 });
 
 const handleLogin = async () => {
