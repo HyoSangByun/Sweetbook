@@ -92,6 +92,17 @@ const goBack = () => {
         <p class="meta">Environment: {{ creditStore.balance.env }}</p>
         <p class="meta">Updated: {{ formatDateTime(creditStore.balance.updatedAt) }}</p>
       </div>
+      <div v-else class="state-block">
+        <p class="meta">No balance available.</p>
+        <button
+          type="button"
+          class="refresh-button"
+          :disabled="creditStore.isFetchingBalance"
+          @click="creditStore.fetchBalance"
+        >
+          Retry
+        </button>
+      </div>
     </section>
 
     <section class="card charge-card">
@@ -210,7 +221,7 @@ const goBack = () => {
 
 .success {
   margin: 0;
-  color: #2c6d47;
+  color: var(--color-success);
 }
 
 .charge-button {
