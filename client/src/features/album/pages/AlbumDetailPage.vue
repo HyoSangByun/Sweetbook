@@ -1,11 +1,11 @@
-﻿<template>
+<template>
   <div class="album-detail-page">
     <header class="page-header">
       <div class="container header-content">
-        <router-link to="/" class="btn-back">???쒕룞 紐⑸줉?쇰줈</router-link>
+        <router-link to="/" class="btn-back">활동 목록으로</router-link>
         <h1 class="logo">SweetBook</h1>
         <div class="user-actions">
-          <button @click="handleLogout" class="btn-logout">濡쒓렇?꾩썐</button>
+          <button @click="handleLogout" class="btn-logout">로그아웃</button>
         </div>
       </div>
     </header>
@@ -21,17 +21,17 @@
         
         <div class="album-review-card">
           <h3 class="card-label">Monthly Review</h3>
-          <p class="review-content">{{ albumStore.currentAlbum.monthlyReview || '?묒꽦??由щ럭媛 ?놁뒿?덈떎.' }}</p>
-          <button @click="isEditingInfo = true" class="btn-edit-info">?뺣낫 ?섏젙</button>
+          <p class="review-content">{{ albumStore.currentAlbum.monthlyReview || '작성된 리뷰가 없습니다.' }}</p>
+          <button @click="isEditingInfo = true" class="btn-edit-info">정보 수정</button>
         </div>
       </section>
 
       <!-- Selected Activities & Photos -->
       <section class="activities-section">
-        <h3 class="section-subtitle">?좏깮???쒕룞 ({{ albumStore.currentAlbum.selectedActivityCount }})</h3>
+        <h3 class="section-subtitle">선택된 활동 ({{ albumStore.currentAlbum.selectedActivityCount }})</h3>
         
         <div v-if="albumStore.currentAlbum.selectedActivities.length === 0" class="empty-state">
-          ?쒕룞 紐⑸줉?먯꽌 ?쒕룞???좏깮?댁＜?몄슂.
+          활동 목록에서 활동을 선택해 주세요.
         </div>
         
         <div v-else class="activity-list">
@@ -47,7 +47,7 @@
             </div>
 
             <div class="photo-management">
-              <h5 class="photo-label">異붽????ъ쭊</h5>
+              <h5 class="photo-label">추가된 사진</h5>
               <div class="photo-grid">
                 <div v-for="photo in photoStore.photosByActivity[activity.activityId]" :key="photo.photoId" class="photo-item">
                   <img :src="`/api/albums/${albumStore.currentAlbum.albumId}/activities/${activity.activityId}/photos/${photo.photoId}`" :alt="photo.originalFileName" class="photo-img" />
@@ -61,7 +61,7 @@
                 </div>
                 <div class="upload-placeholder" @click="triggerPhotoUpload(activity.activityId)">
                   <span v-if="photoStore.isLoading">...</span>
-                  <span v-else>+ 異붽?</span>
+                  <span v-else>+ 추가</span>
                 </div>
               </div>
               <input 
@@ -78,7 +78,7 @@
               class="btn-deselect"
               :disabled="deselectLoadingByActivity[activity.activityId]"
             >
-              {{ deselectLoadingByActivity[activity.activityId] ? '泥섎━ 以?..' : '?댁젣' }}
+              {{ deselectLoadingByActivity[activity.activityId] ? '처리 중...' : '해제' }}
             </button>
           </div>
         </div>
@@ -88,27 +88,27 @@
       <section class="order-section">
         <div class="order-card">
           <div class="order-status-info">
-            <span class="status-label">吏꾪뻾 ?곹깭</span>
+            <span class="status-label">진행 상태</span>
             <span class="status-value">{{ albumStore.currentAlbum.status }}</span>
           </div>
-          <button v-if="albumStore.currentAlbum.status === 'DRAFT'" class="btn-order" @click="goToOrderList">二쇰Ц?섍린</button>
+          <button v-if="albumStore.currentAlbum.status === 'DRAFT'" class="btn-order" @click="goToOrderList">주문하기</button>
         </div>
       </section>
     </main>
 
     <div v-else-if="fetchError" class="error-state">
       <p class="error-message">{{ fetchError }}</p>
-      <button @click="loadAlbumData" class="btn-retry">?ㅼ떆 ?쒕룄</button>
+      <button @click="loadAlbumData" class="btn-retry">다시 시도</button>
     </div>
 
     <div v-else-if="albumStore.isLoading" class="loading-state">
-      ?⑤쾾 ?뺣낫瑜?遺덈윭?ㅻ뒗 以?..
+      앨범 정보를 불러오는 중...
     </div>
 
     <!-- Info Edit Modal (Placeholder) -->
     <div v-if="isEditingInfo" class="modal-overlay" @click.self="closeInfoModal">
       <div class="modal-content">
-        <button class="btn-modal-close" @click="closeInfoModal" aria-label="?뺣낫 ?섏젙 紐⑤떖 ?リ린">?リ린</button>
+        <button class="btn-modal-close" @click="closeInfoModal" aria-label="정보 수정 모달 닫기">닫기</button>
       </div>
     </div>
   </div>
@@ -167,7 +167,7 @@ const loadAlbumData = async () => {
       }
     }
   } catch (err: any) {
-    fetchError.value = err.message || '?⑤쾾 ?뺣낫瑜?遺덈윭?ㅻ뒗 ???ㅽ뙣?덉뒿?덈떎.';
+    fetchError.value = err.message || '앨범 정보를 불러오는 데 실패했습니다.';
   }
 };
 
@@ -185,7 +185,7 @@ const handlePhotoUpload = async (event: Event, activityId: number) => {
     try {
       await photoStore.uploadPhoto(albumStore.currentAlbum.albumId, activityId, target.files[0]);
     } catch (err: any) {
-      alert('?낅줈???ㅽ뙣: ' + (err.message || '?????녿뒗 ?먮윭'));
+      alert('업로드 실패: ' + (err.message || '알 수 없는 오류'));
     } finally {
       target.value = ''; // Reset file input
     }
@@ -195,13 +195,13 @@ const handlePhotoUpload = async (event: Event, activityId: number) => {
 const handleDeletePhoto = async (activityId: number, photoId: number) => {
   if (!albumStore.currentAlbum) return;
   if (deleteLoadingByPhoto.value[photoId]) return;
-  if (!confirm('???ъ쭊????젣?섏떆寃좎뒿?덇퉴?')) return;
+  if (!confirm('이 사진을 삭제하시겠습니까?')) return;
 
   deleteLoadingByPhoto.value[photoId] = true;
   try {
     await photoStore.deletePhoto(albumStore.currentAlbum.albumId, activityId, photoId);
   } catch (err: any) {
-    alert('??젣 ?ㅽ뙣: ' + (err.message || '?????녿뒗 ?먮윭'));
+    alert('삭제 실패: ' + (err.message || '알 수 없는 오류'));
   } finally {
     deleteLoadingByPhoto.value[photoId] = false;
   }
@@ -225,7 +225,7 @@ const handleDeselect = async (activityId: number) => {
       albumStore.currentAlbum.selectedActivityCount = res.selectedActivityCount;
     }
   } catch (err: any) {
-    deselectError.value = err?.message || '?쒕룞 ?댁젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.';
+    deselectError.value = err?.message || '활동 해제 중 오류가 발생했습니다.';
     console.error('Failed to deselect activity:', err);
     alert(deselectError.value);
   } finally {
