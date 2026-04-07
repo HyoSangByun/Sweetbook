@@ -6,6 +6,7 @@ import * as albumApi from '../api/albumApi';
 export const useAlbumStore = defineStore('album', () => {
   const currentAlbum = ref<AlbumResponse | null>(null);
   const isLoading = ref(false);
+  const isGeneratingBook = ref(false);
 
   const selectedActivityCount = computed(() => currentAlbum.value?.selectedActivityCount ?? 0);
   const hasPhoto = computed(() => currentAlbum.value?.hasPhoto ?? false);
@@ -49,12 +50,24 @@ export const useAlbumStore = defineStore('album', () => {
   };
 
   const generateBook = async (albumId: number) => {
-    return albumApi.generateBook(albumId);
+    if (isGeneratingBook.value) {
+      return null;
+    }
+
+    isGeneratingBook.value = true;
+    try {
+      const res = await albumApi.generateBook(albumId);
+      await fetchAlbum(albumId);
+      return res;
+    } finally {
+      isGeneratingBook.value = false;
+    }
   };
 
   return {
     currentAlbum,
     isLoading,
+    isGeneratingBook,
     selectedActivityCount,
     hasPhoto,
     fetchAlbum,

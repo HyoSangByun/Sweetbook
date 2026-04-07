@@ -83,11 +83,12 @@
 
       <section class="preview-section card">
         <div class="preview-actions">
-          <button class="btn-primary" @click="openPreview" :disabled="isPreviewLoading">
+          <button class="btn-primary" @click="openPreview" :disabled="isPreviewLoading || isGenerating">
             {{ isPreviewLoading ? '계산 중...' : '미리보기' }}
           </button>
         </div>
         <p v-if="previewError" class="error-message">{{ previewError }}</p>
+        <p v-if="generateError" class="error-message">{{ generateError }}</p>
 
         <div v-if="showPreview" class="preview-summary">
           <h4>미리보기 요약</h4>
@@ -107,7 +108,9 @@
               <img v-if="contentThumbnail" :src="contentThumbnail" alt="content thumbnail" class="thumb" />
             </div>
           </div>
-          <button class="btn-primary" @click="confirmGenerateAndGoOrder">확인 후 결제 진행</button>
+          <button class="btn-primary" @click="confirmGenerateAndGoOrder" :disabled="isGenerating">
+            {{ isGenerating ? '생성 중...' : '확인 후 결제 진행' }}
+          </button>
         </div>
       </section>
     </main>
@@ -143,7 +146,9 @@ const albumStore = useAlbumStore();
 
 const fetchError = ref<string | null>(null);
 const previewError = ref<string | null>(null);
+const generateError = ref<string | null>(null);
 const isPreviewLoading = ref(false);
+const isGenerating = ref(false);
 const showPreview = ref(false);
 const estimate = ref<{
   estimatedPageCount: number;
@@ -304,10 +309,20 @@ const openPreview = async () => {
 };
 
 const confirmGenerateAndGoOrder = async () => {
-  if (!albumStore.currentAlbum) return;
-  await albumStore.updateAlbum(albumStore.currentAlbum.albumId, { title: bookForm.title.trim() });
-  await albumStore.generateBook(albumStore.currentAlbum.albumId);
-  router.push({ name: 'order-list', params: { albumId: albumStore.currentAlbum.albumId } });
+  if (!albumStore.currentAlbum || isGenerating.value) return;
+
+  isGenerating.value = true;
+  generateError.value = null;
+
+  try {
+    await albumStore.updateAlbum(albumStore.currentAlbum.albumId, { title: bookForm.title.trim() });
+    await albumStore.generateBook(albumStore.currentAlbum.albumId);
+    router.push({ name: 'order-list', params: { albumId: albumStore.currentAlbum.albumId } });
+  } catch (err: any) {
+    generateError.value = err?.message || '책 생성 중 오류가 발생했습니다. 다시 시도해 주세요.';
+  } finally {
+    isGenerating.value = false;
+  }
 };
 
 const handleLogout = () => {
@@ -328,6 +343,7 @@ watch(
   async () => {
     showPreview.value = false;
     estimate.value = null;
+    generateError.value = null;
     bookForm.coverTemplateUid = '';
     bookForm.contentTemplateUid = '';
     await loadTemplates();
@@ -339,6 +355,7 @@ watch(
   async (value) => {
     showPreview.value = false;
     estimate.value = null;
+    generateError.value = null;
     await loadTemplateThumbnail(value, 'cover');
   },
 );
@@ -348,6 +365,7 @@ watch(
   async (value) => {
     showPreview.value = false;
     estimate.value = null;
+    generateError.value = null;
     await loadTemplateThumbnail(value, 'content');
   },
 );
@@ -502,6 +520,11 @@ onBeforeUnmount(() => {
   background: var(--color-terracotta);
   color: var(--color-white);
   padding: 10px 14px;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .thumb-row {
