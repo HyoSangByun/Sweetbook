@@ -30,14 +30,17 @@ class CreditServiceTest {
 
     @Test
     void 잔액_조회_응답을_매핑한다() {
+        OffsetDateTime expectedCreatedAt = OffsetDateTime.parse("2026-04-07T00:00:00Z");
+        OffsetDateTime expectedUpdatedAt = OffsetDateTime.parse("2026-04-07T01:00:00Z");
+
         when(sweetbookCreditsClient.getCreditsBalance()).thenReturn(
                 new CreditsBalanceResponseData(
                         "acc_123",
                         100000L,
                         "KRW",
                         "test",
-                        OffsetDateTime.parse("2026-04-07T00:00:00Z"),
-                        OffsetDateTime.parse("2026-04-07T01:00:00Z")
+                        expectedCreatedAt,
+                        expectedUpdatedAt
                 )
         );
 
@@ -47,6 +50,8 @@ class CreditServiceTest {
         assertThat(response.balance()).isEqualTo(100000L);
         assertThat(response.currency()).isEqualTo("KRW");
         assertThat(response.env()).isEqualTo("test");
+        assertThat(response.createdAt()).isEqualTo(expectedCreatedAt.toLocalDateTime());
+        assertThat(response.updatedAt()).isEqualTo(expectedUpdatedAt.toLocalDateTime());
     }
 
     @Test
@@ -65,4 +70,3 @@ class CreditServiceTest {
         verify(sweetbookCreditsClient).chargeSandboxCredits(anyLong(), anyString(), anyString());
     }
 }
-
