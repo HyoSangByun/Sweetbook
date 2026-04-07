@@ -24,7 +24,7 @@ const shippingPrefill = computed(() => {
     postalCode: shipping?.postalCode ?? '',
     address: shipping?.address1 ?? '',
     addressDetail: shipping?.address2 ?? '',
-    // TODO(contract): shipping.memo 노출/수정 UI 요구사항이 계약서에 없어 현재는 사용하지 않음.
+    // shipping.memo is intentionally not supported in frontend UI.
   };
 });
 

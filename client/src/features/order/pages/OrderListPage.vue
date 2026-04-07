@@ -93,7 +93,7 @@ const validateCreateForm = () => {
   const unitPrice = Number(createForm.unitPrice);
 
   if (!bookUid.value) {
-    return 'bookUid가 없어 주문 생성이 불가능합니다. TODO: 백엔드에서 주문 가능한 시점의 bookUid 보장 규칙 확인 필요';
+    return 'bookUid가 없어 주문 생성이 불가능합니다.';
   }
 
   if (!Number.isInteger(quantity) || quantity <= 0) {
