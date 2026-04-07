@@ -1,61 +1,41 @@
-import client from '@/shared/api/client';
-import { ApiResponse } from '@/shared/types/common';
-import { OrderRequest, OrderResponse, ShippingUpdateRequest } from '../types';
+﻿import client from '../../../shared/api/client';
+import type { OrderRequest, OrderResponse, ShippingUpdateRequest } from '../types';
+
+const unwrap = <T>(response: T | { data: T }) => {
+  if (typeof response === 'object' && response !== null && 'data' in response) {
+    return response.data;
+  }
+  return response;
+};
 
 export const orderApi = {
-  /**
-   * 주문 생성
-   */
   createOrder: async (albumId: number, data: OrderRequest) => {
-    const response = await client.post<ApiResponse<OrderResponse>>(
-      `/albums/${albumId}/orders`,
-      data
-    );
-    return response.data;
+    const response = await client.post<OrderResponse>(`/albums/${albumId}/orders`, data);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
   },
 
-  /**
-   * 주문 목록 조회
-   */
   getOrders: async (albumId: number) => {
-    const response = await client.get<ApiResponse<OrderResponse[]>>(
-      `/albums/${albumId}/orders`
-    );
-    return response.data;
+    const response = await client.get<OrderResponse[]>(`/albums/${albumId}/orders`);
+    return unwrap<OrderResponse[]>(response as OrderResponse[] | { data: OrderResponse[] });
   },
 
-  /**
-   * 주문 상세 조회
-   */
   getOrder: async (albumId: number, orderId: number) => {
-    const response = await client.get<ApiResponse<OrderResponse>>(
-      `/albums/${albumId}/orders/${orderId}`
-    );
-    return response.data;
+    const response = await client.get<OrderResponse>(`/albums/${albumId}/orders/${orderId}`);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
   },
 
-  /**
-   * 주문 취소
-   */
   cancelOrder: async (albumId: number, orderId: number) => {
-    const response = await client.post<ApiResponse<OrderResponse>>(
-      `/albums/${albumId}/orders/${orderId}/cancel`
-    );
-    return response.data;
+    const response = await client.post<OrderResponse>(`/albums/${albumId}/orders/${orderId}/cancel`);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
   },
 
-  /**
-   * 배송지 수정
-   */
   updateShipping: async (
     albumId: number,
     orderId: number,
     data: ShippingUpdateRequest
   ) => {
-    const response = await client.patch<ApiResponse<OrderResponse>>(
-      `/albums/${albumId}/orders/${orderId}/shipping`,
-      data
-    );
-    return response.data;
+    const response = await client.patch<OrderResponse>(`/albums/${albumId}/orders/${orderId}/shipping`, data);
+    return unwrap<OrderResponse>(response as OrderResponse | { data: OrderResponse });
   },
 };
+

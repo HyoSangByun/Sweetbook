@@ -1,109 +1,147 @@
-import { defineStore } from 'pinia';
+﻿import { defineStore } from 'pinia';
 import { orderApi } from '../api/orderApi';
-import { OrderResponse, OrderRequest, ShippingUpdateRequest } from '../types';
+import type { OrderRequest, OrderResponse, ShippingUpdateRequest } from '../types';
+
+interface ApiLikeError {
+  code?: string;
+  message?: string;
+  details?: {
+    status?: number;
+  };
+}
+
+const toErrorMessage = (error: unknown, fallback: string) => {
+  const apiError = error as ApiLikeError;
+  const parts: string[] = [];
+
+  if (typeof apiError?.details?.status === 'number') {
+    parts.push(`HTTP ${apiError.details.status}`);
+  }
+
+  if (apiError?.code) {
+    parts.push(apiError.code);
+  }
+
+  if (apiError?.message) {
+    parts.push(apiError.message);
+  }
+
+  return parts.length > 0 ? parts.join(' | ') : fallback;
+};
 
 export const useOrderStore = defineStore('order', {
   state: () => ({
     orders: [] as OrderResponse[],
     currentOrder: null as OrderResponse | null,
-    loading: false,
-    error: null as string | null,
+
+    isFetchingList: false,
+    isFetchingDetail: false,
+    isCreating: false,
+    isCancelling: false,
+    isUpdatingShipping: false,
+
+    listError: null as string | null,
+    detailError: null as string | null,
+    createError: null as string | null,
+    cancelError: null as string | null,
+    updateShippingError: null as string | null,
   }),
 
   actions: {
     async fetchOrders(albumId: number) {
-      this.loading = true;
-      this.error = null;
+      this.isFetchingList = true;
+      this.listError = null;
+
       try {
-        const response = await orderApi.getOrders(albumId);
-        if (response.success) {
-          this.orders = response.data;
-        } else {
-          this.error = response.error?.message || '주문 목록을 불러오는데 실패했습니다.';
-        }
-      } catch (err: any) {
-        this.error = err.message || '네트워크 오류가 발생했습니다.';
+        this.orders = await orderApi.getOrders(albumId);
+      } catch (error) {
+        this.listError = toErrorMessage(error, '주문 목록을 불러오지 못했습니다.');
       } finally {
-        this.loading = false;
+        this.isFetchingList = false;
       }
     },
 
     async fetchOrderDetail(albumId: number, orderId: number) {
-      this.loading = true;
-      this.error = null;
+      this.isFetchingDetail = true;
+      this.detailError = null;
+
       try {
-        const response = await orderApi.getOrder(albumId, orderId);
-        if (response.success) {
-          this.currentOrder = response.data;
-        } else {
-          this.error = response.error?.message || '주문 상세 정보를 불러오는데 실패했습니다.';
-        }
-      } catch (err: any) {
-        this.error = err.message || '네트워크 오류가 발생했습니다.';
+        this.currentOrder = await orderApi.getOrder(albumId, orderId);
+      } catch (error) {
+        this.detailError = toErrorMessage(error, '주문 상세 정보를 불러오지 못했습니다.');
       } finally {
-        this.loading = false;
+        this.isFetchingDetail = false;
       }
     },
 
     async createOrder(albumId: number, data: OrderRequest) {
-      this.loading = true;
-      this.error = null;
+      if (this.isCreating) return null;
+
+      this.isCreating = true;
+      this.createError = null;
+
       try {
-        const response = await orderApi.createOrder(albumId, data);
-        if (response.success) {
-          await this.fetchOrders(albumId);
-          return response.data;
-        } else {
-          this.error = response.error?.message || '주문 생성에 실패했습니다.';
-          return null;
-        }
-      } catch (err: any) {
-        this.error = err.message || '네트워크 오류가 발생했습니다.';
+        const createdOrder = await orderApi.createOrder(albumId, data);
+
+        await Promise.all([
+          this.fetchOrders(albumId),
+          this.fetchOrderDetail(albumId, createdOrder.orderId),
+        ]);
+
+        return createdOrder;
+      } catch (error) {
+        this.createError = toErrorMessage(error, '주문 생성에 실패했습니다.');
         return null;
       } finally {
-        this.loading = false;
+        this.isCreating = false;
       }
     },
 
     async cancelOrder(albumId: number, orderId: number) {
-      this.loading = true;
-      this.error = null;
+      if (this.isCancelling) return false;
+
+      this.isCancelling = true;
+      this.cancelError = null;
+
       try {
-        const response = await orderApi.cancelOrder(albumId, orderId);
-        if (response.success) {
-          await this.fetchOrderDetail(albumId, orderId);
-          await this.fetchOrders(albumId);
-          return true;
-        } else {
-          this.error = response.error?.message || '주문 취소에 실패했습니다.';
-          return false;
-        }
-      } catch (err: any) {
-        this.error = err.message || '네트워크 오류가 발생했습니다.';
+        await orderApi.cancelOrder(albumId, orderId);
+
+        await Promise.all([
+          this.fetchOrderDetail(albumId, orderId),
+          this.fetchOrders(albumId),
+        ]);
+
+        return true;
+      } catch (error) {
+        this.cancelError = toErrorMessage(error, '주문 취소에 실패했습니다.');
         return false;
       } finally {
-        this.loading = false;
+        this.isCancelling = false;
       }
     },
 
     async updateShipping(albumId: number, orderId: number, data: ShippingUpdateRequest) {
-      this.loading = true;
-      this.error = null;
+      if (this.isUpdatingShipping) return false;
+
+      this.isUpdatingShipping = true;
+      this.updateShippingError = null;
+
       try {
-        const response = await orderApi.updateShipping(albumId, orderId, data);
-        if (response.success) {
-          await this.fetchOrderDetail(albumId, orderId);
-          return true;
-        } else {
-          this.error = response.error?.message || '배송지 수정에 실패했습니다.';
-          return false;
-        }
-      } catch (err: any) {
-        this.error = err.message || '네트워크 오류가 발생했습니다.';
+        await orderApi.updateShipping(albumId, orderId, data);
+
+        await Promise.all([
+          this.fetchOrderDetail(albumId, orderId),
+          this.fetchOrders(albumId),
+        ]);
+
+        return true;
+      } catch (error) {
+        this.updateShippingError = toErrorMessage(error, '배송지 수정에 실패했습니다.');
         return false;
       } finally {
-        this.loading = false;
+        this.isUpdatingShipping = false;
       }
     },
   },
 });
+
