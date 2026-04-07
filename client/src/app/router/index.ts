@@ -29,6 +29,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/credits',
+      name: 'credit',
+      component: () => import('../../features/credit/pages/CreditPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/albums/:albumId/orders',
       name: 'order-list',
       component: () => import('../../features/order/pages/OrderListPage.vue'),
@@ -45,7 +51,7 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
-  
+
   if (!authStore.isInitialised) {
     try {
       await authStore.bootstrap();
