@@ -1,7 +1,22 @@
 import axios from 'axios';
+import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import type { ApiResponse } from '../types/common';
 
-const client = axios.create({
+type HttpClient = Omit<
+  AxiosInstance,
+  'request' | 'get' | 'delete' | 'head' | 'options' | 'post' | 'put' | 'patch'
+> & {
+  request<T = unknown, D = unknown>(config: AxiosRequestConfig<D>): Promise<T>;
+  get<T = unknown, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<T>;
+  delete<T = unknown, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<T>;
+  head<T = unknown, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<T>;
+  options<T = unknown, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<T>;
+  post<T = unknown, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<T>;
+  put<T = unknown, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<T>;
+  patch<T = unknown, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<T>;
+};
+
+const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
@@ -9,7 +24,7 @@ const client = axios.create({
 });
 
 // Request Interceptor: Add Authorization Header
-client.interceptors.request.use((config) => {
+axiosClient.interceptors.request.use((config) => {
   if (typeof FormData !== 'undefined' && config.data instanceof FormData && config.headers) {
     const headers = config.headers as any;
     if (typeof headers.delete === 'function') {
@@ -29,7 +44,7 @@ client.interceptors.request.use((config) => {
 });
 
 // Response Interceptor: Unwrap data or handle error
-client.interceptors.response.use(
+axiosClient.interceptors.response.use(
   (response) => {
     const data = response.data;
     if (data && typeof data === 'object' && 'success' in data) {
@@ -70,5 +85,7 @@ client.interceptors.response.use(
     });
   }
 );
+
+const client = axiosClient as unknown as HttpClient;
 
 export default client;
