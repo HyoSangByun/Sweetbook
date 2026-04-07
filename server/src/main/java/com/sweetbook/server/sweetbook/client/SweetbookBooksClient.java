@@ -34,6 +34,9 @@ public class SweetbookBooksClient {
     private static final ParameterizedTypeReference<SweetbookApiResponse<Map<String, Object>>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
+    private static final ParameterizedTypeReference<SweetbookApiResponse<Object>> OBJECT_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
 
     public String createBook(String title, String bookSpecUid, String externalRef) {
         String idempotencyKey = buildCreateBookIdempotencyKey(externalRef);
@@ -205,12 +208,12 @@ public class SweetbookBooksClient {
     }
 
     public List<Map<String, Object>> getBookSpecs() {
-        SweetbookApiResponse<Map<String, Object>> response;
+        SweetbookApiResponse<Object> response;
         try {
             response = sweetbookRestClient.get()
                     .uri("/v1/book-specs")
                     .retrieve()
-                    .body(MAP_RESPONSE_TYPE);
+                    .body(OBJECT_RESPONSE_TYPE);
         } catch (RestClientException e) {
             SweetbookClientErrorLogger.logRestClientException(log, "getBookSpecs", "GET /v1/book-specs", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
@@ -222,14 +225,19 @@ public class SweetbookBooksClient {
             throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
         }
 
-        Object specs = response.data().get("bookSpecs");
-        if (specs instanceof List<?> list) {
-            return list.stream()
-                    .filter(Map.class::isInstance)
-                    .map(item -> (Map<String, Object>) item)
-                    .toList();
+        Object data = response.data();
+        if (data instanceof List<?> list) {
+            return toMapList(list);
         }
-        return List.of();
+
+        if (data instanceof Map<?, ?> dataMap) {
+            Object specs = dataMap.get("bookSpecs");
+            if (specs instanceof List<?> list) {
+                return toMapList(list);
+            }
+        }
+
+        throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Unexpected response format for book specs.");
     }
 
     public Map<String, Object> getBookSpecDetail(String bookSpecUid) {
@@ -318,6 +326,13 @@ public class SweetbookBooksClient {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid template parameter payload.");
         }
+    }
+
+    private List<Map<String, Object>> toMapList(List<?> list) {
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .toList();
     }
 
     private String buildCreateBookIdempotencyKey(String externalRef) {
