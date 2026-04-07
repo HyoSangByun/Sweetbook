@@ -27,8 +27,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   const signup = async (data: SignupRequest) => {
     const res = await authApi.signup(data);
-    setToken(res.accessToken);
+    const accessToken = (res as { accessToken?: string } | undefined)?.accessToken;
+
+    if (!accessToken) {
+      clearAuth();
+      return false;
+    }
+
+    setToken(accessToken);
     await fetchMe();
+    return true;
   };
 
   const fetchMe = async () => {

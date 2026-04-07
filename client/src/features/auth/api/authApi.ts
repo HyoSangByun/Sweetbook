@@ -5,7 +5,7 @@ export const login = (data: LoginRequest) =>
   client.post<AuthTokenResponse>('/auth/login', data);
 
 export const signup = (data: SignupRequest) => 
-  client.post<AuthTokenResponse>('/auth/signup', data);
+  client.post<void>('/auth/signup', data);
 
 export const getMe = () => 
   client.get<UserInfo>('/auth/me');
