@@ -27,10 +27,20 @@ export interface OrderResponse {
   externalRef: string;
   status: OrderStatus;
   lastErrorMessage: string | null;
-  remoteOrderStatusCode: string;
+  remoteOrderStatusCode: number | null;
   remoteOrderStatusDisplay: string;
   remoteOrderedAt: string | null;
   createdAt: string;
+  payload?: {
+    shipping?: {
+      recipientName?: string;
+      recipientPhone?: string;
+      postalCode?: string;
+      address1?: string;
+      address2?: string;
+      memo?: string;
+    };
+  };
 }
 
 export interface ShippingUpdateRequest {

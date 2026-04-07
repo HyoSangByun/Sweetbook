@@ -16,17 +16,27 @@ const isShippingModalOpen = ref(false);
 const successMessage = ref<string | null>(null);
 
 const order = computed(() => orderStore.currentOrder);
-
-const normalizedRemoteCode = computed(() => {
-  return String(order.value?.remoteOrderStatusCode ?? '');
+const shippingPrefill = computed(() => {
+  const shipping = order.value?.payload?.shipping;
+  return {
+    recipientName: shipping?.recipientName ?? '',
+    phoneNumber: shipping?.recipientPhone ?? '',
+    postalCode: shipping?.postalCode ?? '',
+    address: shipping?.address1 ?? '',
+    addressDetail: shipping?.address2 ?? '',
+    // TODO(contract): shipping.memo 노출/수정 UI 요구사항이 계약서에 없어 현재는 사용하지 않음.
+  };
 });
 
+const remoteCode = computed(() => order.value?.remoteOrderStatusCode ?? null);
+const remoteCodeLabel = computed(() => (remoteCode.value === null ? '-' : String(remoteCode.value)));
+
 const canCancel = computed(() => {
-  return normalizedRemoteCode.value === '20' || normalizedRemoteCode.value === '25';
+  return remoteCode.value === 20 || remoteCode.value === 25;
 });
 
 const canUpdateShipping = computed(() => {
-  return ['20', '25', '30'].includes(normalizedRemoteCode.value);
+  return remoteCode.value === 20 || remoteCode.value === 25 || remoteCode.value === 30;
 });
 
 const loadOrder = async () => {
@@ -128,7 +138,7 @@ const handleSubmitShipping = async (payload: ShippingUpdateRequest) => {
           <span :class="['status-badge', `status-${order.status.toLowerCase()}`]">{{ getStatusLabel(order.status) }}</span>
         </div>
 
-        <p class="status-line">원격 상태: {{ order.remoteOrderStatusDisplay }} ({{ order.remoteOrderStatusCode }})</p>
+        <p class="status-line">원격 상태: {{ order.remoteOrderStatusDisplay }} ({{ remoteCodeLabel }})</p>
         <p class="meta-line">주문 시간: {{ formatDate(order.createdAt) }}</p>
         <p class="meta-line">원격 주문 시간: {{ formatDate(order.remoteOrderedAt) }}</p>
         <p v-if="order.lastErrorMessage" class="error-message">{{ order.lastErrorMessage }}</p>
@@ -187,6 +197,7 @@ const handleSubmitShipping = async (payload: ShippingUpdateRequest) => {
       :open="isShippingModalOpen"
       :pending="orderStore.isUpdatingShipping"
       :error-message="orderStore.updateShippingError"
+      :initial-values="shippingPrefill"
       @close="isShippingModalOpen = false"
       @submit="handleSubmitShipping"
     />

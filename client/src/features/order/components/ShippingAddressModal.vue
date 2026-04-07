@@ -6,6 +6,13 @@ const props = defineProps<{
   open: boolean;
   pending: boolean;
   errorMessage: string | null;
+  initialValues?: {
+    recipientName?: string;
+    phoneNumber?: string;
+    postalCode?: string;
+    address?: string;
+    addressDetail?: string;
+  };
 }>();
 
 const emit = defineEmits<{
@@ -41,12 +48,11 @@ watch(
   (nextOpen) => {
     if (!nextOpen) return;
 
-    // TODO(contract): ORDER_API_CONTRACT.md에는 주문 상세 응답의 shipping 포함 여부가 명시되어 있지 않아 자동 프리필을 하지 않는다.
-    form.recipientName = '';
-    form.phoneNumber = '';
-    form.postalCode = '';
-    form.address = '';
-    form.addressDetail = '';
+    form.recipientName = props.initialValues?.recipientName ?? '';
+    form.phoneNumber = props.initialValues?.phoneNumber ?? '';
+    form.postalCode = props.initialValues?.postalCode ?? '';
+    form.address = props.initialValues?.address ?? '';
+    form.addressDetail = props.initialValues?.addressDetail ?? '';
   }
 );
 
@@ -73,9 +79,7 @@ const handleSubmit = () => {
         <button class="close-button" type="button" @click="emit('close')" :disabled="pending">닫기</button>
       </header>
 
-      <p class="helper-text">
-        현재 API 계약서에는 주문 상세 응답의 기존 배송지 필드가 명시되어 있지 않아 자동 채움 없이 새로 입력합니다.
-      </p>
+      <p class="helper-text">기존 배송지 정보가 있으면 자동으로 채워집니다.</p>
 
       <form class="shipping-form" @submit.prevent="handleSubmit">
         <label class="form-field">
