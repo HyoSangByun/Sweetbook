@@ -1,4 +1,4 @@
-# CODEX_BACKEND_GUIDE_EN.md
+# CODEX_BACKEND_GUIDE.md
 
 ## Role
 
@@ -29,6 +29,13 @@ The backend is responsible for:
 
 ---
 
+## Documentation Location
+
+- Backend/API contract docs are managed in the repository root `docs/` directory.
+- If backend work is performed under `server/`, reference docs via `../docs/...`.
+
+---
+
 ## Response Language Rules
 
 - All explanations, comments, work summaries, and draft commit messages must be written in **Korean**.
@@ -55,7 +62,7 @@ The backend is responsible for:
 
 ## Backend Tech Stack
 
-- Prefer Java 21
+- Java 17 (follow current project toolchain)
 - Spring Boot
 - Spring Web
 - Spring Security
