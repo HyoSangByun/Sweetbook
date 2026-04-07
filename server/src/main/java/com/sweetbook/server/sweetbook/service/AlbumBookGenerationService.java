@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,12 @@ public class AlbumBookGenerationService {
         if (preparation.alreadyGenerated()) {
             return buildGeneratedResponse(preparation, request.coverTemplateUid(), request.contentTemplateUid());
         }
+
+        validateTemplatesForBookSpec(
+                request.bookSpecUid(),
+                request.coverTemplateUid(),
+                request.contentTemplateUid()
+        );
 
         String bookUid = sweetbookBooksClient.createBook(
                 request.title(),
@@ -345,6 +352,39 @@ public class AlbumBookGenerationService {
             return Long.parseLong(String.valueOf(value));
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    private void validateTemplatesForBookSpec(String bookSpecUid, String coverTemplateUid, String contentTemplateUid) {
+        Set<String> coverTemplateUids = sweetbookBooksClient.getTemplates(bookSpecUid, "cover").stream()
+                .map(template -> String.valueOf(template.get("templateUid")))
+                .filter(uid -> uid != null && !uid.isBlank() && !"null".equals(uid))
+                .collect(java.util.stream.Collectors.toSet());
+
+        if (!coverTemplateUids.contains(coverTemplateUid)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "coverTemplateUid is not available for the selected bookSpecUid."
+            );
+        }
+
+        Set<String> contentTemplateUids = sweetbookBooksClient.getTemplates(bookSpecUid, "content").stream()
+                .map(template -> String.valueOf(template.get("templateUid")))
+                .filter(uid -> uid != null && !uid.isBlank() && !"null".equals(uid))
+                .collect(java.util.stream.Collectors.toSet());
+
+        if (!contentTemplateUids.contains(contentTemplateUid)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "contentTemplateUid is not available for the selected bookSpecUid."
+            );
+        }
+
+        if (!contentTemplateUids.contains(MONTH_START_TEMPLATE_UID)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "MONTH_START_TEMPLATE_UID is not available for the selected bookSpecUid."
+            );
         }
     }
 
