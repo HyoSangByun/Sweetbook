@@ -1,16 +1,24 @@
-<template>
+﻿<template>
   <div class="auth-page">
     <div class="auth-container">
       <h1 class="auth-title">SweetBook</h1>
       <div class="auth-card">
-        <h2 class="card-title">로그인</h2>
+        <h2 class="card-title">Login</h2>
         <div v-if="showSignupSuccess" class="success-message" role="status" aria-live="polite">
-          <span>회원가입이 완료되었습니다. 로그인해 주세요.</span>
-          <button type="button" class="btn-dismiss" @click="dismissSignupSuccess">닫기</button>
+          <span>Signup completed successfully. Please log in.</span>
+          <button
+            type="button"
+            class="btn-dismiss"
+            @click="dismissSignupSuccess"
+            :disabled="isDismissingSignupSuccess"
+            :aria-busy="isDismissingSignupSuccess"
+          >
+            Close
+          </button>
         </div>
         <form @submit.prevent="handleLogin" class="auth-form">
           <div class="form-group">
-            <label for="email">이메일</label>
+            <label for="email">Email</label>
             <input
               id="email"
               v-model="email"
@@ -21,12 +29,12 @@
             />
           </div>
           <div class="form-group">
-            <label for="password">비밀번호</label>
+            <label for="password">Password</label>
             <input
               id="password"
               v-model="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="********"
               required
               :disabled="isLoading"
             />
@@ -35,12 +43,12 @@
             {{ error }}
           </div>
           <button type="submit" class="btn-primary" :disabled="isLoading">
-            <span v-if="isLoading">로그인 중...</span>
-            <span v-else>로그인</span>
+            <span v-if="isLoading">Logging in...</span>
+            <span v-else>Login</span>
           </button>
         </form>
         <div class="auth-footer">
-          <p>계정이 없으신가요? <router-link to="/signup">회원가입</router-link></p>
+          <p>Don't have an account? <router-link to="/signup">Sign up</router-link></p>
         </div>
       </div>
     </div>
@@ -61,15 +69,22 @@ const password = ref('');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const isSignupSuccessDismissed = ref(false);
+const isDismissingSignupSuccess = ref(false);
 
 const isSignupSuccess = computed(() => route.query.signup === 'success');
 const showSignupSuccess = computed(() => isSignupSuccess.value && !isSignupSuccessDismissed.value);
 
 const dismissSignupSuccess = async () => {
-  isSignupSuccessDismissed.value = true;
-  const nextQuery = { ...route.query };
-  delete nextQuery.signup;
-  await router.replace({ query: nextQuery });
+  if (isDismissingSignupSuccess.value) return;
+  isDismissingSignupSuccess.value = true;
+  try {
+    isSignupSuccessDismissed.value = true;
+    const nextQuery = { ...route.query };
+    delete nextQuery.signup;
+    await router.replace({ query: nextQuery });
+  } finally {
+    isDismissingSignupSuccess.value = false;
+  }
 };
 
 let clearSuccessTimer: ReturnType<typeof setTimeout> | null = null;
@@ -109,7 +124,7 @@ const handleLogin = async () => {
     });
     router.push({ name: 'dashboard' });
   } catch (err: any) {
-    error.value = err.message || '로그인에 실패했습니다. 다시 시도해 주세요.';
+    error.value = err.message || 'Login failed. Please try again.';
   } finally {
     isLoading.value = false;
   }
