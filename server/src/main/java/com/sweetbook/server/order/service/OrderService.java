@@ -60,8 +60,6 @@ public class OrderService {
 
         String payloadJson = toCanonicalJson(payload);
         validateRequestPayloadLength(payloadJson, albumId, externalRef);
-        String idempotencyKey = "order-" + albumId + "-" + externalRef;
-
         OrderPreparation preparation = prepareOrder(albumProject, externalRef, payloadJson);
         if (preparation.existingOrder() != null) {
             return toCreateResponse(preparation.existingOrder());
@@ -69,7 +67,7 @@ public class OrderService {
 
         final String orderUid;
         try {
-            orderUid = sweetbookOrdersClient.createOrder(payload, idempotencyKey);
+            orderUid = sweetbookOrdersClient.createOrder(payload);
             log.info("Sweetbook order created. albumId={}, externalRef={}, orderUid={}", albumId, externalRef, orderUid);
         } catch (BusinessException ex) {
             markFailed(userId, albumId, externalRef, ex.getMessage());

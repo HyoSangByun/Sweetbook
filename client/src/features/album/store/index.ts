@@ -48,6 +48,10 @@ export const useAlbumStore = defineStore('album', () => {
     return res;
   };
 
+  const generateBook = async (albumId: number) => {
+    return albumApi.generateBook(albumId);
+  };
+
   return {
     currentAlbum,
     isLoading,
@@ -58,5 +62,6 @@ export const useAlbumStore = defineStore('album', () => {
     updateAlbum,
     selectActivities,
     deselectActivity,
+    generateBook,
   };
 });

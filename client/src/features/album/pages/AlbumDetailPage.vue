@@ -4,153 +4,177 @@
       <div class="container header-content">
         <router-link to="/" class="btn-back">활동 목록으로</router-link>
         <h1 class="logo">SweetBook</h1>
-        <div class="user-actions">
-          <button @click="handleLogout" class="btn-logout">로그아웃</button>
-        </div>
+        <button @click="handleLogout" class="btn-logout">로그아웃</button>
       </div>
     </header>
 
     <main class="container" v-if="albumStore.currentAlbum && !fetchError">
-      <!-- Album Info Header -->
       <section class="album-info-section">
-        <div class="album-info-header">
-          <div class="month-badge">{{ albumStore.currentAlbum.month }}</div>
-          <h2 class="album-title">{{ albumStore.currentAlbum.title }}</h2>
-          <p v-if="albumStore.currentAlbum.subtitle" class="album-subtitle">{{ albumStore.currentAlbum.subtitle }}</p>
-        </div>
-        
-        <div class="album-review-card">
-          <h3 class="card-label">Monthly Review</h3>
-          <p class="review-content">{{ albumStore.currentAlbum.monthlyReview || '작성된 리뷰가 없습니다.' }}</p>
-          <button @click="isEditingInfo = true" class="btn-edit-info">정보 수정</button>
+        <div class="month-badge">{{ albumStore.currentAlbum.month }}</div>
+        <h2 class="album-title">{{ albumStore.currentAlbum.title }}</h2>
+      </section>
+
+      <section class="book-config card">
+        <h3 class="section-title">책 생성 정보</h3>
+        <div class="field-grid">
+          <label class="field">
+            <span>Book title</span>
+            <input v-model="bookForm.title" type="text" required />
+          </label>
+
+          <label class="field">
+            <span>BookSpec (판형)</span>
+            <select v-model="bookForm.bookSpecUid">
+              <option value="" disabled>선택하세요</option>
+              <option v-for="spec in bookSpecs" :key="spec.bookSpecUid" :value="spec.bookSpecUid">
+                {{ spec.bookSpecUid }} ({{ spec.pageMin }}~{{ spec.pageMax }})
+              </option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Cover template</span>
+            <select v-model="bookForm.coverTemplateUid">
+              <option value="" disabled>선택하세요</option>
+              <option v-for="tpl in coverTemplates" :key="tpl.templateUid" :value="tpl.templateUid">
+                {{ tpl.templateUid }}
+              </option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Content template</span>
+            <select v-model="bookForm.contentTemplateUid">
+              <option value="" disabled>선택하세요</option>
+              <option v-for="tpl in contentTemplates" :key="tpl.templateUid" :value="tpl.templateUid">
+                {{ tpl.templateUid }}
+              </option>
+            </select>
+          </label>
         </div>
       </section>
 
-      <!-- Selected Activities & Photos -->
-      <section class="activities-section">
-        <h3 class="section-subtitle">선택된 활동 ({{ albumStore.currentAlbum.selectedActivityCount }})</h3>
-        
+      <section class="activities-section card">
+        <h3 class="section-title">선택된 활동/날짜 ({{ albumStore.currentAlbum.selectedActivityCount }})</h3>
         <div v-if="albumStore.currentAlbum.selectedActivities.length === 0" class="empty-state">
-          활동 목록에서 활동을 선택해 주세요.
+          선택된 활동이 없습니다.
         </div>
-        
         <div v-else class="activity-list">
-          <div v-for="activity in albumStore.currentAlbum.selectedActivities" :key="activity.albumActivityId" class="activity-item-card">
-            <div class="activity-main-info">
-              <div class="activity-type-tag">{{ activity.activityType }}</div>
-              <h4 class="activity-name">{{ activity.activityName }}</h4>
-              <p class="activity-time">{{ formatDate(activity.activityDateTime) }}</p>
-              <div class="activity-stats">
-                <span>{{ activity.distanceKm.toFixed(2) }}km</span>
-                <span>{{ formatDuration(activity.movingTimeSeconds) }}</span>
+          <div v-for="activity in albumStore.currentAlbum.selectedActivities" :key="activity.albumActivityId" class="activity-item">
+            <div class="activity-meta">
+              <strong>{{ formatDate(activity.activityDateTime) }}</strong>
+              <span>{{ activity.activityName }}</span>
+              <span>{{ activity.distanceKm.toFixed(2) }}km</span>
+            </div>
+            <div class="photo-section">
+              <label class="file-label">
+                사진 첨부(선택)
+                <input type="file" accept="image/*" @change="onPhotoChange(activity.activityId, $event)" />
+              </label>
+              <div v-if="photoPreviewByActivity[activity.activityId]" class="preview-box">
+                <img :src="photoPreviewByActivity[activity.activityId]" alt="첨부 미리보기" class="preview-image" />
+                <button type="button" class="btn-remove" @click="clearPhoto(activity.activityId)">제거</button>
               </div>
             </div>
-
-            <div class="photo-management">
-              <h5 class="photo-label">추가된 사진</h5>
-              <div class="photo-grid">
-                <div v-for="photo in photoStore.photosByActivity[activity.activityId]" :key="photo.photoId" class="photo-item">
-                  <img :src="`/api/albums/${albumStore.currentAlbum.albumId}/activities/${activity.activityId}/photos/${photo.photoId}`" :alt="photo.originalFileName" class="photo-img" />
-                  <button
-                    @click="handleDeletePhoto(activity.activityId, photo.photoId)"
-                    class="btn-delete-photo"
-                    :disabled="deleteLoadingByPhoto[photo.photoId]"
-                  >
-                    횞
-                  </button>
-                </div>
-                <div class="upload-placeholder" @click="triggerPhotoUpload(activity.activityId)">
-                  <span v-if="photoStore.isLoading">...</span>
-                  <span v-else>+ 추가</span>
-                </div>
-              </div>
-              <input 
-                type="file" 
-                :ref="el => setFileInputRef(el, activity.activityId)" 
-                @change="(e) => handlePhotoUpload(e, activity.activityId)" 
-                accept="image/*" 
-                style="display: none" 
-              />
-            </div>
-
-            <button
-              @click="handleDeselect(activity.activityId)"
-              class="btn-deselect"
-              :disabled="deselectLoadingByActivity[activity.activityId]"
-            >
-              {{ deselectLoadingByActivity[activity.activityId] ? '처리 중...' : '해제' }}
-            </button>
+            <button class="btn-deselect" @click="handleDeselect(activity.activityId)">활동 해제</button>
           </div>
         </div>
       </section>
 
-      <!-- Order Status Banner -->
-      <section class="order-section">
-        <div class="order-card">
-          <div class="order-status-info">
-            <span class="status-label">진행 상태</span>
-            <span class="status-value">{{ albumStore.currentAlbum.status }}</span>
+      <section class="preview-section card">
+        <div class="preview-actions">
+          <button class="btn-primary" @click="openPreview" :disabled="isPreviewLoading">
+            {{ isPreviewLoading ? '계산 중...' : '미리보기' }}
+          </button>
+        </div>
+        <p v-if="previewError" class="error-message">{{ previewError }}</p>
+
+        <div v-if="showPreview" class="preview-summary">
+          <h4>미리보기 요약</h4>
+          <p>제목: {{ bookForm.title }}</p>
+          <p>BookSpec: {{ selectedBookSpecLabel }}</p>
+          <p>예상 페이지 수: {{ estimate?.estimatedPageCount ?? estimatedPageCount }}</p>
+          <p v-if="estimate?.totalAmount != null">
+            예상 금액: {{ formatCurrency(estimate.totalAmount, estimate.currency || 'KRW') }}
+          </p>
+          <div class="thumb-row">
+            <div class="thumb-col">
+              <p>Cover</p>
+              <img v-if="coverThumbnail" :src="coverThumbnail" alt="cover thumbnail" class="thumb" />
+            </div>
+            <div class="thumb-col">
+              <p>Content</p>
+              <img v-if="contentThumbnail" :src="contentThumbnail" alt="content thumbnail" class="thumb" />
+            </div>
           </div>
-          <button v-if="albumStore.currentAlbum.status === 'DRAFT'" class="btn-order" @click="goToOrderList">주문하기</button>
+          <button class="btn-primary" @click="confirmGenerateAndGoOrder">확인 후 결제 진행</button>
         </div>
       </section>
     </main>
 
     <div v-else-if="fetchError" class="error-state">
       <p class="error-message">{{ fetchError }}</p>
-      <button @click="loadAlbumData" class="btn-retry">다시 시도</button>
-    </div>
-
-    <div v-else-if="albumStore.isLoading" class="loading-state">
-      앨범 정보를 불러오는 중...
-    </div>
-
-    <!-- Info Edit Modal (Placeholder) -->
-    <div v-if="isEditingInfo" class="modal-overlay" @click.self="closeInfoModal">
-      <div class="modal-content">
-        <button class="btn-modal-close" @click="closeInfoModal" aria-label="정보 수정 모달 닫기">닫기</button>
-      </div>
+      <button @click="loadAlbumData" class="btn-primary">다시 시도</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../auth/store';
 import { useAlbumStore } from '../store';
-import { usePhotoStore } from '../../photo/store';
+import * as albumApi from '../api/albumApi';
+
+type BookSpecItem = {
+  bookSpecUid: string;
+  pageMin?: number;
+  pageMax?: number;
+};
+
+type TemplateItem = {
+  templateUid: string;
+};
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const albumStore = useAlbumStore();
-const photoStore = usePhotoStore();
 
-const isEditingInfo = ref(false);
 const fetchError = ref<string | null>(null);
-const fileInputRefs = ref<Record<number, HTMLInputElement | null>>({});
-const deleteLoadingByPhoto = ref<Record<number, boolean>>({});
-const deselectLoadingByActivity = ref<Record<number, boolean>>({});
-const deselectError = ref<string | null>(null);
+const previewError = ref<string | null>(null);
+const isPreviewLoading = ref(false);
+const showPreview = ref(false);
+const estimate = ref<{
+  estimatedPageCount: number;
+  productAmount: number | null;
+  shippingFee: number | null;
+  packagingFee: number | null;
+  totalAmount: number | null;
+  currency: string;
+} | null>(null);
 
-const closeInfoModal = () => {
-  isEditingInfo.value = false;
-};
+const bookSpecs = ref<BookSpecItem[]>([]);
+const coverTemplates = ref<TemplateItem[]>([]);
+const contentTemplates = ref<TemplateItem[]>([]);
+const coverThumbnail = ref<string | null>(null);
+const contentThumbnail = ref<string | null>(null);
 
-const handleEscClose = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && isEditingInfo.value) {
-    closeInfoModal();
-  }
-};
-
-onMounted(async () => {
-  window.addEventListener('keydown', handleEscClose);
-  await loadAlbumData();
+const bookForm = reactive({
+  title: '',
+  bookSpecUid: '',
+  coverTemplateUid: '',
+  contentTemplateUid: '',
 });
 
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleEscClose);
+const photoFileByActivity = ref<Record<number, File | null>>({});
+const photoPreviewByActivity = ref<Record<number, string>>({});
+
+const estimatedPageCount = computed(() => (albumStore.currentAlbum?.selectedActivities.length ?? 0) + 1);
+
+const selectedBookSpecLabel = computed(() => {
+  const spec = bookSpecs.value.find((item) => item.bookSpecUid === bookForm.bookSpecUid);
+  return spec ? spec.bookSpecUid : '-';
 });
 
 const loadAlbumData = async () => {
@@ -160,81 +184,129 @@ const loadAlbumData = async () => {
   fetchError.value = null;
   try {
     await albumStore.fetchAlbum(albumId);
-    if (albumStore.currentAlbum) {
-      // Fetch photos for each activity
-      for (const activity of albumStore.currentAlbum.selectedActivities) {
-        await photoStore.fetchPhotos(albumId, activity.activityId);
-      }
+    if (albumStore.currentAlbum && !bookForm.title) {
+      bookForm.title = albumStore.currentAlbum.title;
     }
   } catch (err: any) {
-    fetchError.value = err.message || '앨범 정보를 불러오는 데 실패했습니다.';
+    fetchError.value = err.message || '앨범 정보를 불러오지 못했습니다.';
   }
 };
 
-const setFileInputRef = (el: any, activityId: number) => {
-  if (el) fileInputRefs.value[activityId] = el as HTMLInputElement;
-};
-
-const triggerPhotoUpload = (activityId: number) => {
-  fileInputRefs.value[activityId]?.click();
-};
-
-const handlePhotoUpload = async (event: Event, activityId: number) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files.length > 0 && albumStore.currentAlbum) {
-    try {
-      await photoStore.uploadPhoto(albumStore.currentAlbum.albumId, activityId, target.files[0]);
-    } catch (err: any) {
-      alert('업로드 실패: ' + (err.message || '알 수 없는 오류'));
-    } finally {
-      target.value = ''; // Reset file input
-    }
+const loadBookSpecs = async () => {
+  const specs = await albumApi.getBookSpecs();
+  bookSpecs.value = specs as BookSpecItem[];
+  if (!bookForm.bookSpecUid && specs.length > 0) {
+    bookForm.bookSpecUid = (specs[0] as BookSpecItem).bookSpecUid;
   }
 };
 
-const handleDeletePhoto = async (activityId: number, photoId: number) => {
-  if (!albumStore.currentAlbum) return;
-  if (deleteLoadingByPhoto.value[photoId]) return;
-  if (!confirm('이 사진을 삭제하시겠습니까?')) return;
+const loadTemplates = async () => {
+  if (!bookForm.bookSpecUid) return;
+  const [covers, contents] = await Promise.all([
+    albumApi.getTemplates(bookForm.bookSpecUid, 'cover'),
+    albumApi.getTemplates(bookForm.bookSpecUid, 'content'),
+  ]);
+  coverTemplates.value = covers as TemplateItem[];
+  contentTemplates.value = contents as TemplateItem[];
 
-  deleteLoadingByPhoto.value[photoId] = true;
-  try {
-    await photoStore.deletePhoto(albumStore.currentAlbum.albumId, activityId, photoId);
-  } catch (err: any) {
-    alert('삭제 실패: ' + (err.message || '알 수 없는 오류'));
-  } finally {
-    deleteLoadingByPhoto.value[photoId] = false;
+  if (!bookForm.coverTemplateUid && coverTemplates.value.length > 0) {
+    bookForm.coverTemplateUid = coverTemplates.value[0].templateUid;
   }
+  if (!bookForm.contentTemplateUid && contentTemplates.value.length > 0) {
+    bookForm.contentTemplateUid = contentTemplates.value[0].templateUid;
+  }
+};
+
+const loadTemplateThumbnail = async (templateUid: string, type: 'cover' | 'content') => {
+  if (!templateUid) {
+    if (type === 'cover') coverThumbnail.value = null;
+    else contentThumbnail.value = null;
+    return;
+  }
+
+  const detail = await albumApi.getTemplateDetail(templateUid);
+  const thumbnail = detail?.thumbnails?.layout ?? null;
+  if (type === 'cover') {
+    coverThumbnail.value = thumbnail;
+  } else {
+    contentThumbnail.value = thumbnail;
+  }
+};
+
+const onPhotoChange = (activityId: number, event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const prevUrl = photoPreviewByActivity.value[activityId];
+  if (prevUrl) {
+    URL.revokeObjectURL(prevUrl);
+  }
+
+  photoFileByActivity.value[activityId] = file;
+  photoPreviewByActivity.value[activityId] = URL.createObjectURL(file);
+};
+
+const clearPhoto = (activityId: number) => {
+  const prevUrl = photoPreviewByActivity.value[activityId];
+  if (prevUrl) {
+    URL.revokeObjectURL(prevUrl);
+  }
+  delete photoPreviewByActivity.value[activityId];
+  photoFileByActivity.value[activityId] = null;
+};
+
+const revokeAllPreviews = () => {
+  Object.values(photoPreviewByActivity.value).forEach((url) => URL.revokeObjectURL(url));
+  photoPreviewByActivity.value = {};
 };
 
 const handleDeselect = async (activityId: number) => {
   if (!albumStore.currentAlbum) return;
-  if (deselectLoadingByActivity.value[activityId]) return;
+  await albumStore.deselectActivity(albumStore.currentAlbum.albumId, activityId);
+  if (albumStore.currentAlbum) {
+    albumStore.currentAlbum.selectedActivities = albumStore.currentAlbum.selectedActivities.filter(
+      (activity) => activity.activityId !== activityId,
+    );
+  }
+  clearPhoto(activityId);
+};
 
-  const albumId = albumStore.currentAlbum.albumId;
-  deselectError.value = null;
-  deselectLoadingByActivity.value[activityId] = true;
+const validateBeforePreview = () => {
+  if (!albumStore.currentAlbum || albumStore.currentAlbum.selectedActivities.length === 0) {
+    return '활동을 최소 1개 이상 선택해 주세요.';
+  }
+  if (!bookForm.title.trim()) return '책 제목을 입력해 주세요.';
+  if (!bookForm.bookSpecUid) return 'BookSpec을 선택해 주세요.';
+  if (!bookForm.coverTemplateUid) return 'Cover template을 선택해 주세요.';
+  if (!bookForm.contentTemplateUid) return 'Content template을 선택해 주세요.';
+  return null;
+};
 
+const openPreview = async () => {
+  previewError.value = validateBeforePreview();
+  if (previewError.value || !albumStore.currentAlbum) return;
+
+  isPreviewLoading.value = true;
   try {
-    const res = await albumStore.deselectActivity(albumId, activityId);
-
-    if (albumStore.currentAlbum) {
-      albumStore.currentAlbum.selectedActivities = albumStore.currentAlbum.selectedActivities.filter(
-        (activity) => activity.activityId !== activityId,
-      );
-      albumStore.currentAlbum.selectedActivityCount = res.selectedActivityCount;
-    }
+    estimate.value = await albumApi.estimateBookOrder(albumStore.currentAlbum.albumId, {
+      title: bookForm.title.trim(),
+      bookSpecUid: bookForm.bookSpecUid,
+      coverTemplateUid: bookForm.coverTemplateUid,
+      contentTemplateUid: bookForm.contentTemplateUid,
+    });
+    showPreview.value = true;
   } catch (err: any) {
-    deselectError.value = err?.message || '활동 해제 중 오류가 발생했습니다.';
-    console.error('Failed to deselect activity:', err);
-    alert(deselectError.value);
+    previewError.value = err?.message || '미리보기 견적 계산에 실패했습니다.';
   } finally {
-    deselectLoadingByActivity.value[activityId] = false;
+    isPreviewLoading.value = false;
   }
 };
 
-const goToOrderList = () => {
+const confirmGenerateAndGoOrder = async () => {
   if (!albumStore.currentAlbum) return;
+  await albumStore.updateAlbum(albumStore.currentAlbum.albumId, { title: bookForm.title.trim() });
+  await albumStore.generateBook(albumStore.currentAlbum.albumId);
   router.push({ name: 'order-list', params: { albumId: albumStore.currentAlbum.albumId } });
 };
 
@@ -243,16 +315,54 @@ const handleLogout = () => {
   router.push({ name: 'login' });
 };
 
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatDate = (value: string) => {
+  return new Date(value).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
-const formatDuration = (seconds: number) => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+const formatCurrency = (amount: number, currency: string) => {
+  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency }).format(amount);
 };
+
+watch(
+  () => bookForm.bookSpecUid,
+  async () => {
+    showPreview.value = false;
+    estimate.value = null;
+    bookForm.coverTemplateUid = '';
+    bookForm.contentTemplateUid = '';
+    await loadTemplates();
+  },
+);
+
+watch(
+  () => bookForm.coverTemplateUid,
+  async (value) => {
+    showPreview.value = false;
+    estimate.value = null;
+    await loadTemplateThumbnail(value, 'cover');
+  },
+);
+
+watch(
+  () => bookForm.contentTemplateUid,
+  async (value) => {
+    showPreview.value = false;
+    estimate.value = null;
+    await loadTemplateThumbnail(value, 'content');
+  },
+);
+
+onMounted(async () => {
+  await loadAlbumData();
+  await loadBookSpecs();
+  await loadTemplates();
+  await loadTemplateThumbnail(bookForm.coverTemplateUid, 'cover');
+  await loadTemplateThumbnail(bookForm.contentTemplateUid, 'content');
+});
+
+onBeforeUnmount(() => {
+  revokeAllPreviews();
+});
 </script>
 
 <style scoped>
@@ -265,7 +375,7 @@ const formatDuration = (seconds: number) => {
   background-color: var(--color-white);
   border-bottom: 1px solid var(--color-border-cream);
   padding: 16px 0;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 .header-content {
@@ -294,9 +404,16 @@ const formatDuration = (seconds: number) => {
   font-weight: 500;
 }
 
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border-cream);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
 .album-info-section {
-  text-align: center;
-  margin-bottom: 64px;
+  margin-bottom: 16px;
 }
 
 .month-badge {
@@ -306,265 +423,113 @@ const formatDuration = (seconds: number) => {
   border-radius: 20px;
   font-size: 0.875rem;
   color: var(--color-olive-gray);
-  margin-bottom: 16px;
 }
 
 .album-title {
-  font-size: 3.5rem;
-  margin-bottom: 12px;
+  margin: 8px 0 0;
 }
 
-.album-subtitle {
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  color: var(--color-olive-gray);
-  margin-bottom: 32px;
+.section-title {
+  margin: 0 0 12px;
 }
 
-.album-review-card {
-  max-width: 800px;
-  margin: 0 auto;
-  background-color: var(--color-ivory);
-  padding: 32px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border-cream);
-  position: relative;
-}
-
-.card-label {
-  font-family: var(--font-serif);
-  font-size: 1rem;
-  color: var(--color-stone-gray);
-  margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.review-content {
-  font-family: var(--font-serif);
-  font-size: 1.125rem;
-  line-height: 1.8;
-  color: var(--color-near-black);
-  margin-bottom: 24px;
-}
-
-.btn-edit-info {
-  background-color: var(--color-warm-sand);
-  color: var(--color-charcoal-warm);
-  padding: 6px 12px;
-  font-size: 0.75rem;
-  border-radius: 6px;
-}
-
-.section-subtitle {
-  font-size: 1.75rem;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--color-border-warm);
-  padding-bottom: 12px;
-}
-
-.activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-.activity-item-card {
-  background-color: var(--color-white);
-  padding: 32px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border-cream);
+.field-grid {
   display: grid;
-  grid-template-columns: 300px 1fr 100px;
-  gap: 32px;
-  align-items: start;
-}
-
-.activity-type-tag {
-  display: inline-block;
-  font-size: 0.625rem;
-  font-weight: 500;
-  padding: 2px 6px;
-  background-color: var(--color-warm-sand);
-  border-radius: 4px;
-  color: var(--color-olive-gray);
-  margin-bottom: 12px;
-}
-
-.activity-name {
-  font-size: 1.25rem;
-  margin-bottom: 8px;
-}
-
-.activity-time {
-  font-size: 0.875rem;
-  color: var(--color-stone-gray);
-  margin-bottom: 12px;
-}
-
-.activity-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.photo-management {
-  border-left: 1px solid var(--color-border-cream);
-  padding-left: 32px;
-}
-
-.photo-label {
-  font-size: 0.875rem;
-  color: var(--color-stone-gray);
-  margin-bottom: 16px;
-}
-
-.photo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.photo-item {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: var(--color-parchment);
+.field {
+  display: grid;
+  gap: 6px;
 }
 
-.photo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.activity-list {
+  display: grid;
+  gap: 12px;
 }
 
-.btn-delete-photo {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background-color: var(--color-white);
-  color: var(--color-error);
-  font-size: 0.875rem;
-  line-height: 1;
+.activity-item {
+  border: 1px solid var(--color-border-cream);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.activity-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.photo-section {
+  display: grid;
+  gap: 8px;
+}
+
+.file-label {
   display: inline-flex;
+  gap: 8px;
   align-items: center;
-  justify-content: center;
-  padding: 0;
 }
 
-.btn-delete-photo:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.upload-placeholder {
-  aspect-ratio: 1;
-  background-color: var(--color-parchment);
-  border: 1px dashed var(--color-border-warm);
-  border-radius: 8px;
+.preview-box {
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 0.75rem;
-  color: var(--color-olive-gray);
+  gap: 8px;
 }
 
+.preview-image {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.btn-remove,
 .btn-deselect {
-  background-color: transparent;
-  color: var(--color-error);
-  font-size: 0.875rem;
-  padding: 8px;
-}
-
-.order-section {
-  margin-top: 80px;
-  margin-bottom: 80px;
-}
-
-.order-card {
-  background-color: var(--color-dark-surface);
-  color: var(--color-white);
-  padding: 40px;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.status-label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--color-warm-silver);
-  margin-bottom: 8px;
-}
-
-.status-value {
-  font-size: 1.5rem;
-  font-weight: 500;
-}
-
-.btn-order {
-  background-color: var(--color-terracotta);
-  color: var(--color-white);
-  padding: 16px 32px;
-  font-size: 1.125rem;
-  font-weight: 500;
-  border-radius: 12px;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  min-width: 320px;
-  background: var(--color-white);
-  border-radius: 12px;
-  padding: 24px;
-}
-
-.btn-modal-close {
-  background-color: var(--color-warm-sand);
+  background: var(--color-warm-sand);
   color: var(--color-charcoal-warm);
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 6px 10px;
 }
 
-.error-state {
-  text-align: center;
-  padding: 100px 24px;
+.preview-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.btn-primary {
+  background: var(--color-terracotta);
+  color: var(--color-white);
+  padding: 10px 14px;
+}
+
+.thumb-row {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.thumb-col {
+  display: grid;
+  gap: 8px;
+}
+
+.thumb {
+  width: 100%;
+  max-width: 280px;
+  border-radius: 10px;
 }
 
 .error-message {
   color: var(--color-error);
-  margin-bottom: 16px;
 }
 
-.btn-retry {
-  background-color: var(--color-white);
-  color: var(--color-error);
-  border: 1px solid var(--color-error);
-  padding: 8px 14px;
-  border-radius: 8px;
-}
-
-.loading-state, .empty-state {
-  text-align: center;
-  padding: 100px;
-  color: var(--color-stone-gray);
+@media (max-width: 768px) {
+  .field-grid,
+  .thumb-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
-

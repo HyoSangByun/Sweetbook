@@ -1,6 +1,8 @@
 package com.sweetbook.server.album.controller;
 
 import com.sweetbook.server.album.dto.AlbumResponse;
+import com.sweetbook.server.album.dto.BookEstimateRequest;
+import com.sweetbook.server.album.dto.BookEstimateResponse;
 import com.sweetbook.server.album.dto.CreateAlbumRequest;
 import com.sweetbook.server.album.dto.DeselectAlbumActivityResponse;
 import com.sweetbook.server.album.dto.GenerateBookResponse;
@@ -22,6 +24,7 @@ import com.sweetbook.server.photo.dto.ActivityPhotoUploadResponse;
 import com.sweetbook.server.photo.service.ActivityPhotoService;
 import com.sweetbook.server.security.AppUserPrincipal;
 import com.sweetbook.server.sweetbook.service.AlbumBookGenerationService;
+import com.sweetbook.server.sweetbook.service.SweetbookCatalogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,9 +40,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -50,6 +55,7 @@ public class AlbumController {
     private final AlbumService albumService;
     private final ActivityPhotoService activityPhotoService;
     private final AlbumBookGenerationService albumBookGenerationService;
+    private final SweetbookCatalogService sweetbookCatalogService;
     private final OrderService orderService;
 
     @PostMapping
@@ -142,6 +148,27 @@ public class AlbumController {
         ));
     }
 
+    @GetMapping("/book-specs")
+    @Operation(summary = "Sweetbook 판형 목록 조회", description = "도서 생성 폼에 필요한 판형 목록을 조회합니다.")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getBookSpecs() {
+        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getBookSpecs()));
+    }
+
+    @GetMapping("/templates")
+    @Operation(summary = "Sweetbook 템플릿 목록 조회", description = "선택한 판형과 템플릿 종류로 템플릿 목록을 조회합니다.")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getTemplates(
+            @RequestParam String bookSpecUid,
+            @RequestParam String templateKind
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getTemplates(bookSpecUid, templateKind)));
+    }
+
+    @GetMapping("/templates/{templateUid}")
+    @Operation(summary = "Sweetbook 템플릿 상세 조회", description = "템플릿 썸네일 등 상세 메타데이터를 조회합니다.")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getTemplateDetail(@PathVariable String templateUid) {
+        return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getTemplateDetail(templateUid)));
+    }
+
     @PostMapping("/{albumId}/book")
     @Operation(summary = "책 생성", description = "앨범 기준으로 Sweetbook 책을 생성하고 최종 확정합니다.")
     public ResponseEntity<ApiResponse<GenerateBookResponse>> generateBook(
@@ -150,6 +177,18 @@ public class AlbumController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 albumBookGenerationService.generateBook(principal.getUserId(), albumId)
+        ));
+    }
+
+    @PostMapping("/{albumId}/book/estimate")
+    @Operation(summary = "책 미리보기 견적", description = "선택한 입력값으로 예상 페이지수와 주문 금액을 계산합니다.")
+    public ResponseEntity<ApiResponse<BookEstimateResponse>> estimateBookOrder(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @Valid @RequestBody BookEstimateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                albumBookGenerationService.estimateOrder(principal.getUserId(), albumId, request)
         ));
     }
 
