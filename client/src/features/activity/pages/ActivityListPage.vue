@@ -5,6 +5,7 @@
         <h1 class="logo">SweetBook</h1>
         <div class="user-actions">
           <span v-if="authStore.me">{{ authStore.me.email }}</span>
+          <button @click="goToCredits" class="btn-credits">Credits</button>
           <button @click="handleLogout" class="btn-logout">로그아웃</button>
         </div>
       </div>
@@ -172,6 +173,10 @@ const handleLogout = () => {
   router.push({ name: 'login' });
 };
 
+const goToCredits = () => {
+  router.push({ name: 'credit' });
+};
+
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
   return date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -223,6 +228,14 @@ const formatDuration = (seconds: number) => {
   font-size: 0.875rem;
   padding: 4px 8px;
   font-weight: 500;
+}
+
+.btn-credits {
+  background-color: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  font-size: 0.875rem;
+  padding: 6px 10px;
+  box-shadow: 0 0 0 1px var(--color-ring-warm);
 }
 
 .section-header {
