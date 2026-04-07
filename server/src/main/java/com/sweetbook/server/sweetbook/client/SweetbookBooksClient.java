@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
@@ -25,11 +26,15 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class SweetbookBooksClient {
 
     private final RestClient sweetbookRestClient;
     private static final ParameterizedTypeReference<SweetbookApiResponse<Map<String, Object>>> MAP_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
+    private static final ParameterizedTypeReference<SweetbookApiResponse<Object>> OBJECT_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
 
@@ -46,6 +51,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "createBook", "POST /v1/books", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to create book via Sweetbook API."
@@ -75,6 +81,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "addCover", "POST /v1/books/{bookUid}/cover", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to add book cover via Sweetbook API."
@@ -109,6 +116,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "addContent", "POST /v1/books/{bookUid}/contents", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to add book content via Sweetbook API."
@@ -137,6 +145,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "uploadPhoto", "POST /v1/books/{bookUid}/photos", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to upload photo via Sweetbook API."
@@ -161,6 +170,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "finalizeBook", "POST /v1/books/{bookUid}/finalization", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to finalize book via Sweetbook API."
@@ -183,6 +193,7 @@ public class SweetbookBooksClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "deleteBook", "DELETE /v1/books/{bookUid}", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to delete temporary book via Sweetbook API."
@@ -197,13 +208,14 @@ public class SweetbookBooksClient {
     }
 
     public List<Map<String, Object>> getBookSpecs() {
-        SweetbookApiResponse<Map<String, Object>> response;
+        SweetbookApiResponse<Object> response;
         try {
             response = sweetbookRestClient.get()
                     .uri("/v1/book-specs")
                     .retrieve()
-                    .body(MAP_RESPONSE_TYPE);
+                    .body(OBJECT_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getBookSpecs", "GET /v1/book-specs", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
             be.initCause(e);
             throw be;
@@ -213,14 +225,19 @@ public class SweetbookBooksClient {
             throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
         }
 
-        Object specs = response.data().get("bookSpecs");
-        if (specs instanceof List<?> list) {
-            return list.stream()
-                    .filter(Map.class::isInstance)
-                    .map(item -> (Map<String, Object>) item)
-                    .toList();
+        Object data = response.data();
+        if (data instanceof List<?> list) {
+            return toMapList(list);
         }
-        return List.of();
+
+        if (data instanceof Map<?, ?> dataMap) {
+            Object specs = dataMap.get("bookSpecs");
+            if (specs instanceof List<?> list) {
+                return toMapList(list);
+            }
+        }
+
+        throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Unexpected response format for book specs.");
     }
 
     public Map<String, Object> getBookSpecDetail(String bookSpecUid) {
@@ -231,6 +248,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getBookSpecDetail", "GET /v1/book-specs/{bookSpecUid}", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book spec detail.");
             be.initCause(e);
             throw be;
@@ -262,6 +280,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getTemplates", "GET /v1/templates", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch templates.");
             be.initCause(e);
             throw be;
@@ -289,6 +308,7 @@ public class SweetbookBooksClient {
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getTemplateDetail", "GET /v1/templates/{templateUid}", e);
             BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch template detail.");
             be.initCause(e);
             throw be;
@@ -306,6 +326,13 @@ public class SweetbookBooksClient {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid template parameter payload.");
         }
+    }
+
+    private List<Map<String, Object>> toMapList(List<?> list) {
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .toList();
     }
 
     private String buildCreateBookIdempotencyKey(String externalRef) {

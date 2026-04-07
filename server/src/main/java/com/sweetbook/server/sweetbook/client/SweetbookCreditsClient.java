@@ -6,6 +6,7 @@ import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
 import com.sweetbook.server.sweetbook.dto.credits.CreditsBalanceResponseData;
 import com.sweetbook.server.sweetbook.dto.credits.SandboxChargeResponseData;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class SweetbookCreditsClient {
 
@@ -28,6 +30,7 @@ public class SweetbookCreditsClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getCreditsBalance", "GET /v1/credits", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to fetch credits balance."
@@ -57,6 +60,7 @@ public class SweetbookCreditsClient {
                     .body(new ParameterizedTypeReference<>() {
                     });
         } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "chargeSandboxCredits", "POST /v1/credits/sandbox/charge", e);
             BusinessException be = new BusinessException(
                     ErrorCode.SWEETBOOK_CALL_FAILED,
                     "Failed to charge sandbox credits."

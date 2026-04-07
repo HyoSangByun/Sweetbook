@@ -27,6 +27,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
@@ -78,6 +79,7 @@ public class AlbumBookGenerationService {
         return markGenerated(userId, albumId, preparation, request, bookUid);
     }
 
+    @Transactional(readOnly = true)
     public BookEstimateResponse estimateOrder(Long userId, Long albumId, BookEstimateRequest request) {
         AlbumProject albumProject = albumProjectRepository.findByIdAndUserId(albumId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
@@ -92,11 +94,11 @@ public class AlbumBookGenerationService {
         String bookUid = sweetbookBooksClient.createBook(request.title(), request.bookSpecUid(), externalRef);
 
         try {
-            sweetbookBooksClient.addCover(bookUid, request.coverTemplateUid(), Map.of(
-                    "title", request.title(),
-                    "subtitle", albumProject.getSubtitle(),
-                    "month", albumProject.getMonth()
-            ));
+            sweetbookBooksClient.addCover(
+                    bookUid,
+                    request.coverTemplateUid(),
+                    buildEstimateCoverParameters(request.title(), albumProject)
+            );
 
             for (ActivityPageData activityPage : activityPages) {
                 sweetbookBooksClient.addContent(
@@ -304,6 +306,14 @@ public class AlbumBookGenerationService {
         parameters.put("title", title);
         parameters.put("subtitle", preparation.subtitle());
         parameters.put("month", preparation.month());
+        return parameters;
+    }
+
+    private Map<String, Object> buildEstimateCoverParameters(String title, AlbumProject albumProject) {
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("title", title);
+        parameters.put("subtitle", albumProject.getSubtitle());
+        parameters.put("month", albumProject.getMonth());
         return parameters;
     }
 
