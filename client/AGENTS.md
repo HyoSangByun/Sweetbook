@@ -7,4 +7,4 @@ Rules:
 - Only modify files inside `client/`.
 - Do not modify `server/`.
 - If API contracts and implementation differ, do not guess. Record the mismatch as TODO.
-- Respond in Korean.
+- Use English only for all comments, instructions, summaries, and technical artifacts in this repository.
