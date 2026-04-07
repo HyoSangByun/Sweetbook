@@ -17,6 +17,12 @@ const router = createRouter({
       meta: { guestOnly: true },
     },
     {
+      path: '/albums/:id',
+      name: 'album-detail',
+      component: () => import('../../features/album/pages/AlbumDetailPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/',
       name: 'dashboard',
       component: () => import('../../features/activity/pages/ActivityListPage.vue'),
