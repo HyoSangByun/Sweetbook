@@ -6,7 +6,11 @@ import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
 import com.sweetbook.server.sweetbook.dto.books.CreateBookRequest;
 import com.sweetbook.server.sweetbook.dto.books.CreateBookResponseData;
 import com.sweetbook.server.sweetbook.dto.books.UploadBookPhotoResponseData;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,11 +34,12 @@ public class SweetbookBooksClient {
             };
 
     public String createBook(String title, String bookSpecUid, String externalRef) {
+        String idempotencyKey = buildCreateBookIdempotencyKey(externalRef);
         SweetbookApiResponse<CreateBookResponseData> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/books")
-                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .header("Idempotency-Key", idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(new CreateBookRequest(title, bookSpecUid, externalRef))
                     .retrieve()
@@ -272,6 +277,20 @@ public class SweetbookBooksClient {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(source == null ? Map.of() : source);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid template parameter payload.");
+        }
+    }
+
+    private String buildCreateBookIdempotencyKey(String externalRef) {
+        String seed = externalRef == null ? "" : externalRef.trim();
+        if (seed.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "externalRef is required for deterministic idempotency.");
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
+            return "book-" + HexFormat.of().formatHex(digest).substring(0, 32);
+        } catch (NoSuchAlgorithmException e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "SHA-256 algorithm is not available.");
         }
     }
 }
