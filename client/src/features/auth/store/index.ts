@@ -26,9 +26,11 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const signup = async (data: SignupRequest) => {
-    const res = await authApi.signup(data);
-    setToken(res.accessToken);
-    await fetchMe();
+    await authApi.signup(data);
+    // TODO: Align signup API contract with frontend typing if auto-login on signup is required.
+    // Current backend returns ApiResponse<Void>, so signup is treated as no-token flow.
+    clearAuth();
+    return false;
   };
 
   const fetchMe = async () => {

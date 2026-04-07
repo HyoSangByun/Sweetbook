@@ -78,11 +78,17 @@ const handleSignup = async () => {
   isLoading.value = true;
   error.value = null;
   try {
-    await authStore.signup({
+    const isLoggedIn = await authStore.signup({
       email: email.value,
       password: password.value,
     });
-    router.push({ name: 'dashboard' });
+
+    if (isLoggedIn) {
+      router.push({ name: 'dashboard' });
+      return;
+    }
+
+    router.push({ name: 'login', query: { signup: 'success' } });
   } catch (err: any) {
     error.value = err.message || '회원가입에 실패했습니다. 다시 시도해주세요.';
   } finally {

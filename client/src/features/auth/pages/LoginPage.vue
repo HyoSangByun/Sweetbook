@@ -1,28 +1,40 @@
-<template>
+﻿<template>
   <div class="auth-page">
     <div class="auth-container">
       <h1 class="auth-title">SweetBook</h1>
       <div class="auth-card">
-        <h2 class="card-title">로그인</h2>
+        <h2 class="card-title">Login</h2>
+        <div v-if="showSignupSuccess" class="success-message" role="status" aria-live="polite">
+          <span>Signup completed successfully. Please log in.</span>
+          <button
+            type="button"
+            class="btn-dismiss"
+            @click="dismissSignupSuccess"
+            :disabled="isDismissingSignupSuccess"
+            :aria-busy="isDismissingSignupSuccess"
+          >
+            Close
+          </button>
+        </div>
         <form @submit.prevent="handleLogin" class="auth-form">
           <div class="form-group">
-            <label for="email">이메일</label>
-            <input 
-              id="email" 
-              v-model="email" 
-              type="email" 
-              placeholder="email@example.com" 
+            <label for="email">Email</label>
+            <input
+              id="email"
+              v-model="email"
+              type="email"
+              placeholder="email@example.com"
               required
               :disabled="isLoading"
             />
           </div>
           <div class="form-group">
-            <label for="password">비밀번호</label>
-            <input 
-              id="password" 
-              v-model="password" 
-              type="password" 
-              placeholder="••••••••" 
+            <label for="password">Password</label>
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              placeholder="********"
               required
               :disabled="isLoading"
             />
@@ -31,12 +43,12 @@
             {{ error }}
           </div>
           <button type="submit" class="btn-primary" :disabled="isLoading">
-            <span v-if="isLoading">로그인 중...</span>
-            <span v-else>로그인</span>
+            <span v-if="isLoading">Logging in...</span>
+            <span v-else>Login</span>
           </button>
         </form>
         <div class="auth-footer">
-          <p>계정이 없으신가요? <router-link to="/signup">회원가입</router-link></p>
+          <p>Don't have an account? <router-link to="/signup">Sign up</router-link></p>
         </div>
       </div>
     </div>
@@ -44,10 +56,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../store';
 
+const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
@@ -55,6 +68,50 @@ const email = ref('');
 const password = ref('');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
+const isSignupSuccessDismissed = ref(false);
+const isDismissingSignupSuccess = ref(false);
+
+const isSignupSuccess = computed(() => route.query.signup === 'success');
+const showSignupSuccess = computed(() => isSignupSuccess.value && !isSignupSuccessDismissed.value);
+
+const dismissSignupSuccess = async () => {
+  if (isDismissingSignupSuccess.value) return;
+  isDismissingSignupSuccess.value = true;
+  try {
+    isSignupSuccessDismissed.value = true;
+    const nextQuery = { ...route.query };
+    delete nextQuery.signup;
+    await router.replace({ query: nextQuery });
+  } finally {
+    isDismissingSignupSuccess.value = false;
+  }
+};
+
+let clearSuccessTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(
+  showSignupSuccess,
+  (visible) => {
+    if (clearSuccessTimer) {
+      clearTimeout(clearSuccessTimer);
+      clearSuccessTimer = null;
+    }
+
+    if (visible) {
+      clearSuccessTimer = setTimeout(() => {
+        dismissSignupSuccess();
+      }, 5000);
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  if (clearSuccessTimer) {
+    clearTimeout(clearSuccessTimer);
+    clearSuccessTimer = null;
+  }
+});
 
 const handleLogin = async () => {
   if (isLoading.value) return;
@@ -67,7 +124,7 @@ const handleLogin = async () => {
     });
     router.push({ name: 'dashboard' });
   } catch (err: any) {
-    error.value = err.message || '로그인에 실패했습니다. 다시 시도해주세요.';
+    error.value = err.message || 'Login failed. Please try again.';
   } finally {
     isLoading.value = false;
   }
@@ -108,6 +165,26 @@ const handleLogin = async () => {
   font-size: 1.5rem;
   margin-bottom: 1.5rem;
   text-align: center;
+}
+
+.success-message {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #e7f7eb;
+  color: #1f6132;
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-dismiss {
+  background: transparent;
+  color: #1f6132;
+  padding: 2px 6px;
+  font-size: 0.75rem;
 }
 
 .auth-form {

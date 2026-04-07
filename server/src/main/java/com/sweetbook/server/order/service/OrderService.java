@@ -61,7 +61,6 @@ public class OrderService {
         String payloadJson = toCanonicalJson(payload);
         validateRequestPayloadLength(payloadJson, albumId, externalRef);
         String idempotencyKey = "order-" + albumId + "-" + externalRef;
-
         OrderPreparation preparation = prepareOrder(albumProject, externalRef, payloadJson);
         if (preparation.existingOrder() != null) {
             return toCreateResponse(preparation.existingOrder());

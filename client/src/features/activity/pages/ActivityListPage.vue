@@ -6,7 +6,7 @@
         <div class="user-actions">
           <span v-if="authStore.me">{{ authStore.me.email }}</span>
           <button @click="goToCredits" class="btn-credits">Credits</button>
-          <button @click="handleLogout" class="btn-logout">로그아웃</button>
+          <button @click="handleLogout" class="btn-logout">Logout</button>
         </div>
       </div>
     </header>
@@ -14,57 +14,81 @@
     <main class="container">
       <section class="activity-section">
         <div class="section-header">
-          <h2 class="section-title">내 활동</h2>
+          <h2 class="section-title">Activities</h2>
           <div class="filter-actions">
-            <select v-model="selectedMonth" @change="handleMonthChange" class="month-select">
+            <span v-if="isMonthSelectorLoading" class="month-state-text">Loading...</span>
+            <div v-else-if="activityLoadError" class="month-error-wrap">
+              <span class="month-state-text">Failed to load.</span>
+              <button type="button" class="btn-retry" @click="retryLoad">Retry</button>
+            </div>
+            <span v-else-if="!hasActivityData" class="month-state-text">No activity data</span>
+            <select v-else v-model="selectedMonth" @change="handleMonthChange" class="month-select">
               <option v-for="month in activityStore.months" :key="month" :value="month">
                 {{ month }}
               </option>
             </select>
-            <input type="file" ref="fileInput" @change="handleImport" accept=".csv" style="display: none" />
-            <button @click="triggerImport" class="btn-import">CSV 임포트</button>
+
+            <input
+              type="file"
+              ref="fileInput"
+              @change="handleImport"
+              accept=".csv"
+              style="display: none"
+              :disabled="isImportPending"
+            />
+            <button
+              @click="triggerImport"
+              class="btn-import"
+              :disabled="isImportPending"
+              :aria-busy="isImportPending"
+            >
+              {{ isImportPending ? 'Importing...' : 'CSV Import' }}
+            </button>
           </div>
         </div>
 
         <div v-if="activityStore.stats" class="stats-banner">
           <div class="stats-item">
-            <span class="stats-label">전체 활동</span>
-            <span class="stats-value">{{ activityStore.stats.totalCount }}회</span>
+            <span class="stats-label">Total activities</span>
+            <span class="stats-value">{{ activityStore.stats.totalCount }}</span>
           </div>
           <div class="stats-item">
-            <span class="stats-label">총 거리</span>
+            <span class="stats-label">Total distance</span>
             <span class="stats-value">{{ activityStore.stats.totalDistanceKm.toFixed(1) }}km</span>
           </div>
           <div class="stats-item">
-            <span class="stats-label">총 시간</span>
+            <span class="stats-label">Total time</span>
             <span class="stats-value">{{ formatDuration(activityStore.stats.totalMovingTimeSeconds) }}</span>
           </div>
         </div>
 
         <div v-if="activityStore.isLoading" class="loading-state">
-          불러오는 중...
+          Loading...
+        </div>
+        <div v-else-if="activityLoadError" class="empty-state">
+          Failed to load data. Please retry.
         </div>
         <div v-else-if="activityStore.activities.length === 0" class="empty-state">
-          이달의 활동이 없습니다. CSV 파일을 임포트해보세요.
+          No activities for this month. Import CSV to continue.
         </div>
         <div v-else class="activity-grid-container">
           <div class="selection-banner" v-if="selectedActivityIds.length > 0">
-            <span>{{ selectedActivityIds.length }}개의 활동 선택됨</span>
+            <span>{{ selectedActivityIds.length }} selected</span>
             <button @click="handleCreateAlbum" class="btn-create-album" :disabled="albumStore.isLoading">
-              {{ albumStore.isLoading ? '생성 중...' : '이 활동들로 앨범 만들기' }}
+              {{ albumStore.isLoading ? 'Creating...' : 'Create Album' }}
             </button>
           </div>
-          
+
           <div class="activity-grid">
-            <div 
-              v-for="activity in activityStore.activities" 
-              :key="activity.activityId" 
+            <div
+              v-for="activity in activityStore.activities"
+              :key="activity.activityId"
               class="activity-card"
               :class="{ 'is-selected': selectedActivityIds.includes(activity.activityId) }"
               @click="toggleSelection(activity.activityId)"
             >
               <div class="card-selection-indicator">
-                <div class="checkbox" :class="{ 'checked': selectedActivityIds.includes(activity.activityId) }"></div>
+                <div class="checkbox" :class="{ checked: selectedActivityIds.includes(activity.activityId) }"></div>
               </div>
               <div class="activity-type">{{ activity.activityType }}</div>
               <h3 class="activity-name">{{ activity.activityName }}</h3>
@@ -82,35 +106,77 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from '../../auth/store';
 import { useActivityStore } from '../store';
 import { useAlbumStore } from '../../album/store';
+import { useAuthStore } from '../../auth/store';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const activityStore = useActivityStore();
 const albumStore = useAlbumStore();
 
-const selectedMonth = ref('');
+const selectedMonth = ref<string | null>(null);
 const selectedActivityIds = ref<number[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
+const hasActivityData = computed(() => activityStore.months.length > 0);
+const activityLoadError = ref<string | null>(null);
+const isMonthSelectorLoading = ref(false);
+const isImportPending = ref(false);
 
 onMounted(async () => {
-  await activityStore.fetchMonths();
-  if (activityStore.months.length > 0) {
-    selectedMonth.value = activityStore.months[0];
-    await loadActivityData(selectedMonth.value);
-  }
+  await retryLoad();
 });
 
 const loadActivityData = async (month: string) => {
-  selectedActivityIds.value = []; // Reset selection when month changes
-  await Promise.all([
-    activityStore.fetchActivities(month),
-    activityStore.fetchStats(month),
-  ]);
+  selectedActivityIds.value = [];
+  try {
+    await Promise.all([
+      activityStore.fetchActivities(month),
+      activityStore.fetchStats(month),
+    ]);
+    activityLoadError.value = null;
+  } catch (err: any) {
+    activityLoadError.value = err?.message || 'Failed to load activity data.';
+    throw err;
+  }
+};
+
+const retryLoad = async () => {
+  isMonthSelectorLoading.value = true;
+  try {
+    await activityStore.fetchMonths();
+    activityLoadError.value = null;
+
+    if (activityStore.months.length === 0) {
+      selectedMonth.value = null;
+      selectedActivityIds.value = [];
+      activityStore.currentMonth = null;
+      activityStore.activities = [];
+      activityStore.stats = null;
+      return;
+    }
+
+    if (!selectedMonth.value || !activityStore.months.includes(selectedMonth.value)) {
+      selectedMonth.value = activityStore.months[0];
+    }
+    await loadActivityData(selectedMonth.value);
+  } catch (err: any) {
+    activityLoadError.value = err?.message || 'Failed to load activity list.';
+  } finally {
+    isMonthSelectorLoading.value = false;
+  }
+};
+
+const handleMonthChange = async () => {
+  if (selectedMonth.value) {
+    try {
+      await loadActivityData(selectedMonth.value);
+    } catch {
+      // Error state is shown by activityLoadError.
+    }
+  }
 };
 
 const toggleSelection = (id: number) => {
@@ -123,47 +189,41 @@ const toggleSelection = (id: number) => {
 };
 
 const handleCreateAlbum = async () => {
-  if (selectedActivityIds.value.length === 0) return;
-  
+  if (selectedActivityIds.value.length === 0 || !selectedMonth.value) return;
+
   try {
     const album = await albumStore.createAlbum({
       month: selectedMonth.value,
-      title: `${selectedMonth.value} 활동 기록`,
+      title: `${selectedMonth.value} activity log`,
     });
-    
-    // Add selected activities to the newly created album
+
     await albumStore.selectActivities(album.albumId, selectedActivityIds.value);
-    
     router.push({ name: 'album-detail', params: { id: album.albumId } });
   } catch (err: any) {
-    alert('앨범 생성 실패: ' + (err.message || '알 수 없는 에러'));
-  }
-};
-
-const handleMonthChange = async () => {
-  if (selectedMonth.value) {
-    await loadActivityData(selectedMonth.value);
+    alert('Failed to create album: ' + (err.message || 'Unknown error'));
   }
 };
 
 const triggerImport = () => {
+  if (isImportPending.value) return;
   fileInput.value?.click();
 };
 
 const handleImport = async (event: Event) => {
+  if (isImportPending.value) return;
+
   const target = event.target as HTMLInputElement;
   if (target.files && target.files.length > 0) {
+    isImportPending.value = true;
     try {
       await activityStore.importActivities(target.files[0]);
-      alert('임포트가 완료되었습니다.');
-      // Update selectedMonth if it was empty, store already handles the fetch
-      if (!selectedMonth.value && activityStore.months.length > 0) {
-        selectedMonth.value = activityStore.months[0];
-      }
+      alert('Import complete.');
+      await retryLoad();
     } catch (err: any) {
-      alert('임포트 실패: ' + (err.message || '알 수 없는 에러'));
+      alert('Import failed: ' + (err.message || 'Unknown error'));
     } finally {
-      target.value = ''; // Reset file input so the same file can be reselected
+      target.value = '';
+      isImportPending.value = false;
     }
   }
 };
@@ -179,13 +239,18 @@ const goToCredits = () => {
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 </script>
 
@@ -252,7 +317,26 @@ const formatDuration = (seconds: number) => {
 
 .filter-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
+}
+
+.month-state-text {
+  font-size: 0.875rem;
+  color: var(--color-olive-gray);
+}
+
+.month-error-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-retry {
+  background-color: var(--color-white);
+  color: var(--color-charcoal-warm);
+  padding: 6px 10px;
+  box-shadow: 0 0 0 1px var(--color-ring-warm);
 }
 
 .month-select {
@@ -269,6 +353,11 @@ const formatDuration = (seconds: number) => {
   padding: 8px 16px;
   font-weight: 500;
   box-shadow: 0 0 0 1px var(--color-ring-warm);
+}
+
+.btn-import:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .stats-banner {
@@ -403,7 +492,8 @@ const formatDuration = (seconds: number) => {
   color: var(--color-stone-gray);
 }
 
-.loading-state, .empty-state {
+.loading-state,
+.empty-state {
   text-align: center;
   padding: 80px;
   background-color: var(--color-ivory);

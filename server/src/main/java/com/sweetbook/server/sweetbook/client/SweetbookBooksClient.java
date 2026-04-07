@@ -3,12 +3,17 @@ package com.sweetbook.server.sweetbook.client;
 import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
-import com.sweetbook.server.sweetbook.dto.books.AddPageRequest;
 import com.sweetbook.server.sweetbook.dto.books.CreateBookRequest;
 import com.sweetbook.server.sweetbook.dto.books.CreateBookResponseData;
 import com.sweetbook.server.sweetbook.dto.books.UploadBookPhotoResponseData;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
@@ -24,13 +29,17 @@ import org.springframework.web.client.RestClientException;
 public class SweetbookBooksClient {
 
     private final RestClient sweetbookRestClient;
+    private static final ParameterizedTypeReference<SweetbookApiResponse<Map<String, Object>>> MAP_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
 
     public String createBook(String title, String bookSpecUid, String externalRef) {
+        String idempotencyKey = buildCreateBookIdempotencyKey(externalRef);
         SweetbookApiResponse<CreateBookResponseData> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/books")
-                    .header("Idempotency-Key", externalRef)
+                    .header("Idempotency-Key", idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(new CreateBookRequest(title, bookSpecUid, externalRef))
                     .retrieve()
@@ -52,13 +61,16 @@ public class SweetbookBooksClient {
     }
 
     public void addCover(String bookUid, String templateUid, Map<String, Object> parameters) {
-        AddPageRequest request = new AddPageRequest(templateUid, parameters);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("templateUid", templateUid);
+        body.add("parameters", toJson(parameters));
         SweetbookApiResponse<Object> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/books/{bookUid}/cover", bookUid)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
@@ -77,7 +89,9 @@ public class SweetbookBooksClient {
     }
 
     public void addContent(String bookUid, String templateUid, Map<String, Object> parameters, String breakBefore) {
-        AddPageRequest request = new AddPageRequest(templateUid, parameters);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("templateUid", templateUid);
+        body.add("parameters", toJson(parameters));
         SweetbookApiResponse<Object> response;
         try {
             response = sweetbookRestClient.post()
@@ -88,8 +102,9 @@ public class SweetbookBooksClient {
                         }
                         return builder.build(bookUid);
                     })
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
@@ -109,12 +124,13 @@ public class SweetbookBooksClient {
 
     public String uploadPhoto(String bookUid, Path filePath) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("photo", new FileSystemResource(filePath));
+        body.add("file", new FileSystemResource(filePath));
 
         SweetbookApiResponse<UploadBookPhotoResponseData> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/books/{bookUid}/photos", bookUid)
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(body)
                     .retrieve()
@@ -140,6 +156,7 @@ public class SweetbookBooksClient {
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/books/{bookUid}/finalization", bookUid)
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
@@ -154,6 +171,126 @@ public class SweetbookBooksClient {
 
         if (response == null || !response.success()) {
             throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to finalize book.");
+        }
+    }
+
+    public void deleteBook(String bookUid) {
+        SweetbookApiResponse<Object> response;
+        try {
+            response = sweetbookRestClient.delete()
+                    .uri("/v1/books/{bookUid}", bookUid)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(
+                    ErrorCode.SWEETBOOK_CALL_FAILED,
+                    "Failed to delete temporary book via Sweetbook API."
+            );
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success()) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to delete temporary book.");
+        }
+    }
+
+    public List<Map<String, Object>> getBookSpecs() {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri("/v1/book-specs")
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book specs.");
+        }
+
+        Object specs = response.data().get("bookSpecs");
+        if (specs instanceof List<?> list) {
+            return list.stream()
+                    .filter(Map.class::isInstance)
+                    .map(item -> (Map<String, Object>) item)
+                    .toList();
+        }
+        return List.of();
+    }
+
+    public List<Map<String, Object>> getTemplates(String bookSpecUid, String templateKind) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/v1/templates")
+                            .queryParam("bookSpecUid", bookSpecUid)
+                            .queryParam("templateKind", templateKind)
+                            .build())
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch templates.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch templates.");
+        }
+
+        Object templates = response.data().get("templates");
+        if (templates instanceof List<?> list) {
+            return list.stream()
+                    .filter(Map.class::isInstance)
+                    .map(item -> (Map<String, Object>) item)
+                    .toList();
+        }
+        return List.of();
+    }
+
+    public Map<String, Object> getTemplateDetail(String templateUid) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri("/v1/templates/{templateUid}", templateUid)
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch template detail.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch template detail.");
+        }
+        return response.data();
+    }
+
+    private String toJson(Map<String, Object> source) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(source == null ? Map.of() : source);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid template parameter payload.");
+        }
+    }
+
+    private String buildCreateBookIdempotencyKey(String externalRef) {
+        String seed = externalRef == null ? "" : externalRef.trim();
+        if (seed.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "externalRef is required for deterministic idempotency.");
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
+            return "book-" + HexFormat.of().formatHex(digest).substring(0, 32);
+        } catch (NoSuchAlgorithmException e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "SHA-256 algorithm is not available.");
         }
     }
 }

@@ -4,6 +4,7 @@ import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
 import com.sweetbook.server.sweetbook.dto.orders.CreateOrderResponseData;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
@@ -17,6 +18,9 @@ import org.springframework.web.client.RestClientException;
 public class SweetbookOrdersClient {
 
     private final RestClient sweetbookRestClient;
+    private static final ParameterizedTypeReference<SweetbookApiResponse<Map<String, Object>>> MAP_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
 
     public String createOrder(Map<String, Object> payload, String idempotencyKey) {
         SweetbookApiResponse<CreateOrderResponseData> response;
@@ -39,6 +43,35 @@ public class SweetbookOrdersClient {
             throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to create order.");
         }
         return response.data().orderUid();
+    }
+
+    public Map<String, Object> estimateOrder(String bookUid, int quantity) {
+        String normalizedBookUid = bookUid == null ? "" : bookUid.trim();
+        if (normalizedBookUid.isEmpty()) {
+            throw new IllegalArgumentException("bookUid must be provided and non-blank.");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be greater than 0.");
+        }
+
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.post()
+                    .uri("/v1/orders/estimate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("items", List.of(Map.of("bookUid", normalizedBookUid, "quantity", quantity))))
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to estimate order.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to estimate order.");
+        }
+        return response.data();
     }
 
     public Map<String, Object> cancelOrder(String orderUid, String cancelReason) {

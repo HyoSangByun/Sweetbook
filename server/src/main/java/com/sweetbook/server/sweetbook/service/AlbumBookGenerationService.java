@@ -4,6 +4,8 @@ import com.sweetbook.server.activity.domain.Activity;
 import com.sweetbook.server.album.domain.AlbumActivity;
 import com.sweetbook.server.album.domain.AlbumProject;
 import com.sweetbook.server.album.domain.BookGenerationStatus;
+import com.sweetbook.server.album.dto.BookEstimateRequest;
+import com.sweetbook.server.album.dto.BookEstimateResponse;
 import com.sweetbook.server.album.dto.GenerateBookResponse;
 import com.sweetbook.server.album.repository.AlbumActivityRepository;
 import com.sweetbook.server.album.repository.AlbumProjectRepository;
@@ -12,6 +14,7 @@ import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.photo.domain.ActivityPhoto;
 import com.sweetbook.server.photo.repository.ActivityPhotoRepository;
 import com.sweetbook.server.sweetbook.client.SweetbookBooksClient;
+import com.sweetbook.server.sweetbook.client.SweetbookOrdersClient;
 import com.sweetbook.server.sweetbook.config.SweetbookProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -37,6 +41,7 @@ public class AlbumBookGenerationService {
     private final AlbumActivityRepository albumActivityRepository;
     private final ActivityPhotoRepository activityPhotoRepository;
     private final SweetbookBooksClient sweetbookBooksClient;
+    private final SweetbookOrdersClient sweetbookOrdersClient;
     private final SweetbookProperties sweetbookProperties;
     private final PlatformTransactionManager transactionManager;
 
@@ -67,6 +72,49 @@ public class AlbumBookGenerationService {
         sweetbookBooksClient.finalizeBook(bookUid);
 
         return markGenerated(userId, albumId, preparation, bookUid);
+    }
+
+    public BookEstimateResponse estimateOrder(Long userId, Long albumId, BookEstimateRequest request) {
+        AlbumProject albumProject = albumProjectRepository.findByIdAndUserId(albumId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
+        List<AlbumActivity> albumActivities =
+                albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
+        if (albumActivities.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "No selected activities in album.");
+        }
+
+        List<ActivityPageData> activityPages = mapActivityPages(albumActivities);
+        String externalRef = "preview-" + albumId + "-" + UUID.randomUUID();
+        String bookUid = sweetbookBooksClient.createBook(request.title(), request.bookSpecUid(), externalRef);
+
+        try {
+            sweetbookBooksClient.addCover(bookUid, request.coverTemplateUid(), Map.of(
+                    "title", request.title(),
+                    "subtitle", albumProject.getSubtitle(),
+                    "month", albumProject.getMonth()
+            ));
+
+            for (ActivityPageData activityPage : activityPages) {
+                sweetbookBooksClient.addContent(
+                        bookUid,
+                        request.contentTemplateUid(),
+                        buildActivityContentParameters(activityPage),
+                        "page"
+                );
+            }
+
+            Map<String, Object> estimate = sweetbookOrdersClient.estimateOrder(bookUid, 1);
+            return new BookEstimateResponse(
+                    activityPages.size() + 1,
+                    toLong(estimate.get("productAmount")),
+                    toLong(estimate.get("shippingFee")),
+                    toLong(estimate.get("packagingFee")),
+                    toLong(estimate.get("totalAmount")),
+                    estimate.get("currency") == null ? "KRW" : String.valueOf(estimate.get("currency"))
+            );
+        } finally {
+            sweetbookBooksClient.deleteBook(bookUid);
+        }
     }
 
     private GenerationPreparation prepareGeneration(Long userId, Long albumId) {
@@ -282,6 +330,20 @@ public class AlbumBookGenerationService {
 
         String fileName = sweetbookBooksClient.uploadPhoto(bookUid, path);
         return java.util.Optional.of(fileName);
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private record GenerationPreparation(
