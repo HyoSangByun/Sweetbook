@@ -96,10 +96,14 @@ public class AlbumProject {
         this.bookFinalizationPending = false;
     }
 
-    public void markBookGenerationPending(String externalRef) {
+    public void markBookGenerationPending(String bookUid, String externalRef) {
+        if (bookUid == null || bookUid.isBlank()) {
+            throw new IllegalArgumentException("bookUid must not be blank.");
+        }
         if (externalRef == null || externalRef.isBlank()) {
             throw new IllegalArgumentException("externalRef must not be blank.");
         }
+        this.bookUid = bookUid;
         this.bookExternalRef = externalRef;
         this.bookFinalizationPending = true;
     }

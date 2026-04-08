@@ -1,14 +1,16 @@
 package com.sweetbook.server.album.controller;
 
 import com.sweetbook.server.album.dto.AlbumResponse;
-import com.sweetbook.server.album.dto.BookEstimateRequest;
-import com.sweetbook.server.album.dto.BookEstimateResponse;
+import com.sweetbook.server.album.dto.AddBookContentsRequest;
+import com.sweetbook.server.album.dto.ApplyBookCoverRequest;
 import com.sweetbook.server.album.dto.CreateAlbumRequest;
+import com.sweetbook.server.album.dto.CreateBookDraftRequest;
+import com.sweetbook.server.album.dto.CreateBookDraftResponse;
 import com.sweetbook.server.album.dto.DeselectAlbumActivityResponse;
-import com.sweetbook.server.album.dto.GenerateBookResponse;
-import com.sweetbook.server.album.dto.GenerateBookRequest;
+import com.sweetbook.server.album.dto.FinalizeBookResponse;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesRequest;
 import com.sweetbook.server.album.dto.SelectAlbumActivitiesResponse;
+import com.sweetbook.server.album.dto.UploadBookPhotoResponse;
 import com.sweetbook.server.album.dto.UpdateAlbumRequest;
 import com.sweetbook.server.album.service.AlbumService;
 import com.sweetbook.server.common.exception.BusinessException;
@@ -46,8 +48,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -204,27 +206,82 @@ public class AlbumController {
         return ResponseEntity.ok(ApiResponse.ok(sweetbookCatalogService.getTemplateDetail(templateUid)));
     }
 
-    @PostMapping("/{albumId}/book")
-    @Operation(summary = "책 생성", description = "앨범 기준으로 Sweetbook 책을 생성하고 최종 확정합니다.")
-    public ResponseEntity<ApiResponse<GenerateBookResponse>> generateBook(
+    @PostMapping("/{albumId}/book/draft")
+    @Operation(summary = "책 Draft 생성", description = "활동 선택 완료 후 SweetBook 책 draft를 생성합니다.")
+    public ResponseEntity<ApiResponse<CreateBookDraftResponse>> createDraftBook(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
-            @Valid @RequestBody GenerateBookRequest request
+            @Valid @RequestBody CreateBookDraftRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
-                albumBookGenerationService.generateBook(principal.getUserId(), albumId, request)
+                albumBookGenerationService.createDraftBook(principal.getUserId(), albumId, request)
         ));
     }
 
-    @PostMapping("/{albumId}/book/estimate")
-    @Operation(summary = "책 미리보기 견적", description = "선택한 입력값으로 예상 페이지수와 주문 금액을 계산합니다.")
-    public ResponseEntity<ApiResponse<BookEstimateResponse>> estimateBookOrder(
+    @PostMapping(value = "/{albumId}/book/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "책 사진 업로드", description = "생성된 bookUid 기준으로 SweetBook 사진 업로드를 수행합니다.")
+    public ResponseEntity<ApiResponse<UploadBookPhotoResponse>> uploadBookPhoto(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long albumId,
-            @Valid @RequestBody BookEstimateRequest request
+            @RequestPart("file") MultipartFile file
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
-                albumBookGenerationService.estimateOrder(principal.getUserId(), albumId, request)
+                albumBookGenerationService.uploadBookPhoto(principal.getUserId(), albumId, file)
+        ));
+    }
+
+    @GetMapping("/{albumId}/book/photos")
+    @Operation(summary = "책 사진 목록 조회", description = "GET /v1/books/{bookUid}/photos 결과를 반환합니다.")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listBookPhotos(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                albumBookGenerationService.listBookPhotos(principal.getUserId(), albumId)
+        ));
+    }
+
+    @PostMapping("/{albumId}/book/cover")
+    @Operation(summary = "표지 추가", description = "고정 커버 템플릿(tpl_F8d15af9fd)으로 표지를 적용합니다.")
+    public ResponseEntity<ApiResponse<Void>> applyBookCover(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @Valid @RequestBody ApplyBookCoverRequest request
+    ) {
+        albumBookGenerationService.applyCover(principal.getUserId(), albumId, request);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    @PostMapping("/{albumId}/book/contents")
+    @Operation(summary = "내지 추가", description = "고정 내지 템플릿(3T09l6GEd0AL)으로 활동별 내지를 추가합니다.")
+    public ResponseEntity<ApiResponse<Void>> addBookContents(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId,
+            @Valid @RequestBody AddBookContentsRequest request
+    ) {
+        albumBookGenerationService.addContents(principal.getUserId(), albumId, request);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    @PostMapping("/{albumId}/book/finalization")
+    @Operation(summary = "책 최종화", description = "커버/내지 적용 완료 후 책을 최종화합니다.")
+    public ResponseEntity<ApiResponse<FinalizeBookResponse>> finalizeBook(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                albumBookGenerationService.finalizeBook(principal.getUserId(), albumId)
+        ));
+    }
+
+    @GetMapping("/{albumId}/books")
+    @Operation(summary = "앨범 생성 책 목록", description = "GET /v1/books를 기반으로 현재 앨범에서 생성한 책 목록을 반환합니다.")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listAlbumBooks(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long albumId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                albumBookGenerationService.listAlbumBooks(principal.getUserId(), albumId)
         ));
     }
 

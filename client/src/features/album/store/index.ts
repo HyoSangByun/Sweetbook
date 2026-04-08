@@ -49,17 +49,17 @@ export const useAlbumStore = defineStore('album', () => {
     return res;
   };
 
-  const generateBook = async (
-    albumId: number,
-    payload: { title: string; bookSpecUid: string; coverTemplateUid: string; contentTemplateUid: string }
-  ) => {
+  const createBookDraft = async (albumId: number, payload: { title: string }) => {
+    return albumApi.createBookDraft(albumId, payload);
+  };
+
+  const finalizeBook = async (albumId: number) => {
     if (isGeneratingBook.value) {
       return null;
     }
-
     isGeneratingBook.value = true;
     try {
-      const res = await albumApi.generateBookWithConfig(albumId, payload);
+      const res = await albumApi.finalizeBook(albumId);
       await fetchAlbum(albumId);
       return res;
     } finally {
@@ -78,6 +78,7 @@ export const useAlbumStore = defineStore('album', () => {
     updateAlbum,
     selectActivities,
     deselectActivity,
-    generateBook,
+    createBookDraft,
+    finalizeBook,
   };
 });
