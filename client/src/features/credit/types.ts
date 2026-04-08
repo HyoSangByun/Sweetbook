@@ -5,7 +5,7 @@ export interface CreditBalanceResponse {
 }
 
 export interface ChargeCreditResponse {
-  transactionUid: string;
+  transactionUid: string | null;
   amount: number;
   balanceAfter: number;
   currency: 'KRW' | string;

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCreditStore } from '../store';
@@ -34,7 +34,7 @@ const chargeValidationMessage = computed(() => {
     return '충전 금액을 입력해 주세요.';
   }
   if (chargeAmount.value <= 0) {
-    return '충전 금액은 1원 이상이어야 합니다.';
+    return '충전 금액은 1 이상이어야 합니다.';
   }
   return null;
 });
