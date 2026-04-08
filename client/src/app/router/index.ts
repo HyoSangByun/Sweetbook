@@ -24,6 +24,11 @@ const router = createRouter({
       component: () => import('../../features/order/pages/OrdersOverviewPage.vue'),
     },
     {
+      path: '/orders/create',
+      name: 'order-create',
+      component: () => import('../../features/order/pages/OrderListPage.vue'),
+    },
+    {
       path: '/books',
       name: 'books-overview',
       component: () => import('../../features/album/pages/BooksOverviewPage.vue'),

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlbumStore } from '../../album/store';
 import * as albumApi from '../../album/api/albumApi';
+import { getAllBooks } from '../../activity/api/activityApi';
 import { useOrderStore } from '../store';
 import type { OrderRequest, OrderStatus } from '../types';
 import { openKakaoPostcode } from '../../../shared/utils/kakaoPostcode';
@@ -26,17 +27,20 @@ const createForm = reactive({
 const createValidationError = ref<string | null>(null);
 const createSuccessMessage = ref<string | null>(null);
 
+const FINALIZED_BOOK_STATUS = 2;
 const availableBooks = ref<Array<{ bookUid: string; title?: string; status?: number }>>([]);
 const selectedBookUid = ref<string | null>(null);
 const booksLoadError = ref<string | null>(null);
 
 const loadPage = async () => {
-  if (!albumId.value) return;
-
-  await Promise.all([
-    orderStore.fetchOrders(albumId.value),
-    albumStore.fetchAlbum(albumId.value),
-  ]);
+  if (albumId.value) {
+    await Promise.all([
+      orderStore.fetchOrders(albumId.value),
+      albumStore.fetchAlbum(albumId.value),
+    ]);
+  } else {
+    orderStore.orders = [];
+  }
   await loadBooks();
 };
 
@@ -49,15 +53,57 @@ onMounted(async () => {
 });
 
 const loadBooks = async () => {
-  if (!albumId.value) return;
   booksLoadError.value = null;
   try {
-    const books = await albumApi.getAlbumBooks(albumId.value);
-    availableBooks.value = books.map((book: any) => ({
-      bookUid: String(book.bookUid),
-      title: book.title ? String(book.title) : undefined,
-      status: typeof book.status === 'number' ? book.status : undefined,
-    }));
+    const normalizeStatusNumber = (value: unknown): number | undefined => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      if (typeof value === 'string' && Number.isFinite(Number(value))) return Number(value);
+      return undefined;
+    };
+
+    const isFinalizedBook = (book: any): boolean => {
+      const statusNumber = normalizeStatusNumber(book?.status);
+      const bookStatusNumber = normalizeStatusNumber(book?.bookStatus);
+      if (statusNumber === FINALIZED_BOOK_STATUS || bookStatusNumber === FINALIZED_BOOK_STATUS) return true;
+
+      const statusText = String(book?.status ?? book?.bookStatus ?? '').toLowerCase();
+      if (statusText.includes('finalized') || statusText.includes('final') || statusText.includes('completed')) return true;
+
+      const displayText = String(book?.statusDisplay ?? book?.bookStatusDisplay ?? '').toLowerCase();
+      if (displayText.includes('final') || displayText.includes('완료')) return true;
+
+      return false;
+    };
+
+    const sourceBooks = albumId.value
+      ? await albumApi.getAlbumBooks(albumId.value)
+      : await getAllBooks();
+
+    let finalizedBooks = sourceBooks
+      .map((book: any) => ({
+        bookUid: String(book.bookUid),
+        title: book.title ? String(book.title) : undefined,
+        status: normalizeStatusNumber(book.status),
+      }))
+      .filter((_, idx) => isFinalizedBook(sourceBooks[idx]));
+
+    if (albumId.value && finalizedBooks.length === 0) {
+      const allBooks = await getAllBooks();
+      finalizedBooks = allBooks
+        .map((book: any) => ({
+          bookUid: String(book.bookUid),
+          title: book.title ? String(book.title) : undefined,
+          status: normalizeStatusNumber(book.status),
+        }))
+        .filter((_, idx) => isFinalizedBook(allBooks[idx]));
+    }
+
+    availableBooks.value = finalizedBooks;
+
+    if (selectedBookUid.value && !availableBooks.value.some((book) => book.bookUid === selectedBookUid.value)) {
+      selectedBookUid.value = null;
+    }
+
     if (!selectedBookUid.value && availableBooks.value.length > 0) {
       selectedBookUid.value = availableBooks.value[0].bookUid;
     }
@@ -145,7 +191,11 @@ const validateCreateForm = () => {
 };
 
 const handleCreateOrder = async () => {
-  if (!albumId.value || orderStore.isCreating) {
+  if (orderStore.isCreating) {
+    return;
+  }
+  if (!albumId.value) {
+    createValidationError.value = '앨범 기반 주문 생성만 지원됩니다. 앨범에서 생성한 주문 화면을 이용해 주세요.';
     return;
   }
 
@@ -188,7 +238,11 @@ const goToDetail = (orderId: number) => {
 };
 
 const goBack = () => {
-  router.push({ name: 'album-detail', params: { id: albumId.value } });
+  if (albumId.value) {
+    router.push({ name: 'album-detail', params: { id: albumId.value } });
+    return;
+  }
+  router.push({ name: 'dashboard' });
 };
 
 const handleSearchAddress = async () => {
@@ -205,7 +259,7 @@ const handleSearchAddress = async () => {
 <template>
   <div class="order-list-page container">
     <header class="page-header">
-      <button class="back-button" type="button" @click="goBack">앨범으로</button>
+      <button class="back-button" type="button" @click="goBack">이전으로</button>
       <h1 class="page-title">주문</h1>
     </header>
 
@@ -261,6 +315,7 @@ const handleSearchAddress = async () => {
         </div>
 
         <p v-if="booksLoadError" class="error-text">{{ booksLoadError }}</p>
+        <p v-else-if="availableBooks.length === 0" class="error-text">최종화된 책이 없어 주문을 생성할 수 없습니다.</p>
         <p v-if="createValidationError" class="error-text">{{ createValidationError }}</p>
         <p v-if="orderStore.createError" class="error-text">{{ orderStore.createError }}</p>
         <p v-if="createSuccessMessage" class="success-text">{{ createSuccessMessage }}</p>
@@ -271,7 +326,7 @@ const handleSearchAddress = async () => {
       </form>
     </section>
 
-    <section class="list-section">
+    <section v-if="albumId" class="list-section">
       <div class="section-header">
         <h2 class="section-title">주문 목록</h2>
       </div>
