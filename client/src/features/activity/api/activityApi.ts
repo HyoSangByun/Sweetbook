@@ -31,8 +31,10 @@ export const getAllOrders = () =>
 export const cancelOrderByUid = (orderUid: string, cancelReason: string) =>
   client.post<any>(`/orders/${encodeURIComponent(orderUid)}/cancel`, { cancelReason });
 
-export const updateOrderShippingByUid = (orderUid: string, recipientName: string, address1: string) =>
-  client.patch<any>(`/orders/${encodeURIComponent(orderUid)}/shipping`, { recipientName, address1 });
+export const updateOrderShippingByUid = (
+  orderUid: string,
+  payload: { recipientName: string; address1: string; postalCode?: string; address2?: string }
+) => client.patch<any>(`/orders/${encodeURIComponent(orderUid)}/shipping`, payload);
 
 export const getAllBooks = () =>
   client.get<any[]>('/books');

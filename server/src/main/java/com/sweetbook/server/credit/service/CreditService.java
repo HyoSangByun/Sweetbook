@@ -1,16 +1,14 @@
 package com.sweetbook.server.credit.service;
 
-import com.sweetbook.server.credit.dto.CreditBalanceResponse;
 import com.sweetbook.server.credit.dto.ChargeCreditResponse;
+import com.sweetbook.server.credit.dto.CreditBalanceResponse;
 import com.sweetbook.server.sweetbook.client.SweetbookCreditsClient;
 import com.sweetbook.server.sweetbook.dto.credits.CreditsBalanceResponseData;
 import com.sweetbook.server.sweetbook.dto.credits.SandboxChargeResponseData;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CreditService {
@@ -31,15 +29,11 @@ public class CreditService {
 
     public ChargeCreditResponse chargeSandboxCredits(long amount) {
         String idempotencyKey = UUID.randomUUID().toString();
-        log.info("Charging sandbox credits. amount={}, idempotencyKey={}", amount, idempotencyKey);
-        SandboxChargeResponseData data = sweetbookCreditsClient.chargeSandboxCredits(
-                amount,
-                idempotencyKey
-        );
-
+        SandboxChargeResponseData data = sweetbookCreditsClient.chargeSandboxCredits(amount, idempotencyKey);
         CreditsBalanceResponseData balance = sweetbookCreditsClient.getCreditsBalance();
-        Long resolvedAmount = data.amount() != null ? data.amount() : amount;
-        Long resolvedBalanceAfter = data.balanceAfter() != null ? data.balanceAfter() : balance.balance();
+
+        long resolvedAmount = data.amount() != null ? data.amount() : amount;
+        long resolvedBalanceAfter = data.balanceAfter() != null ? data.balanceAfter() : balance.balance();
         String resolvedCurrency = data.currency() != null ? data.currency() : balance.currency();
 
         return new ChargeCreditResponse(

@@ -113,7 +113,9 @@ public class OrderService {
 
         Map<String, Object> patch = new LinkedHashMap<>();
         patch.put("recipientName", request.recipientName().trim());
+        putIfNotBlank(patch, "postalCode", request.postalCode());
         patch.put("address1", request.address1().trim());
+        putIfNotBlank(patch, "address2", request.address2());
 
         return sweetbookOrdersClient.updateShipping(orderUid.trim(), patch);
     }
@@ -376,6 +378,13 @@ public class OrderService {
         payload.put("items", itemMaps);
         payload.put("shipping", request.shipping().toMap());
         return payload;
+    }
+
+    private void putIfNotBlank(Map<String, Object> patch, String key, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        patch.put(key, value.trim());
     }
 
     private String resolveExternalRef(Long albumId, String payloadJson) {

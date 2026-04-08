@@ -7,4 +7,3 @@ public record SandboxChargeResponseData(
         String currency
 ) {
 }
-

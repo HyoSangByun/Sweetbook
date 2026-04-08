@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/credits")
-@Tag(name = "Credits", description = "크레딧 잔액 조회 API")
+@Tag(name = "Credits", description = "크레딧 조회 API")
 public class CreditController {
 
     private final CreditService creditService;

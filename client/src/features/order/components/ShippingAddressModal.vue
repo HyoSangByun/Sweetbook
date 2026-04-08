@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { reactive, watch, computed } from 'vue';
 import type { ShippingUpdateRequest } from '../types';
+import { openKakaoPostcode } from '../../../shared/utils/kakaoPostcode';
 
 const props = defineProps<{
   open: boolean;
@@ -69,6 +70,16 @@ const handleSubmit = () => {
     addressDetail: form.addressDetail.trim(),
   });
 };
+
+const handleSearchAddress = async () => {
+  try {
+    const selected = await openKakaoPostcode();
+    form.postalCode = selected.zonecode;
+    form.address = selected.address;
+  } catch (error: any) {
+    window.alert(error?.message || '주소 검색을 열지 못했습니다.');
+  }
+};
 </script>
 
 <template>
@@ -94,7 +105,10 @@ const handleSubmit = () => {
 
         <label class="form-field">
           <span>우편번호</span>
-          <input v-model="form.postalCode" type="text" inputmode="numeric" required placeholder="12345" />
+          <div class="inline-field">
+            <input v-model="form.postalCode" type="text" inputmode="numeric" required placeholder="12345" />
+            <button type="button" class="search-address-button" @click="handleSearchAddress" :disabled="pending">우편번호 검색</button>
+          </div>
         </label>
 
         <label class="form-field">
@@ -168,7 +182,7 @@ const handleSubmit = () => {
 
 .shipping-form {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .form-field {
@@ -178,11 +192,27 @@ const handleSubmit = () => {
   color: var(--color-olive-gray);
 }
 
+.inline-field {
+  display: flex;
+  gap: 12px;
+}
+
+.inline-field input {
+  flex: 1;
+}
+
+.search-address-button {
+  white-space: nowrap;
+  background: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  padding: 10px 12px;
+}
+
 .actions {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: 16px;
 }
 
 .secondary-button {
@@ -221,4 +251,3 @@ const handleSubmit = () => {
   }
 }
 </style>
-

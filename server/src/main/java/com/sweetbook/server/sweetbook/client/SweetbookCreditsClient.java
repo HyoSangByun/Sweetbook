@@ -6,8 +6,8 @@ import com.sweetbook.server.sweetbook.dto.SweetbookApiResponse;
 import com.sweetbook.server.sweetbook.dto.credits.CreditsBalanceResponseData;
 import com.sweetbook.server.sweetbook.dto.credits.SandboxChargeResponseData;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -77,8 +77,8 @@ public class SweetbookCreditsClient {
         }
 
         if (response.data() == null) {
-            log.warn(
-                    "Sweetbook sandbox charge success with empty data. endpoint=POST /v1/credits/sandbox/charge, amount={}, message={}",
+            log.info(
+                    "Sweetbook sandbox charge succeeded with empty data. endpoint=POST /v1/credits/sandbox/charge, amount={}, message={}",
                     amount,
                     response.message()
             );
@@ -88,4 +88,3 @@ public class SweetbookCreditsClient {
         return response.data();
     }
 }
-

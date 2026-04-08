@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import type { AlbumResponse, CreateAlbumRequest, UpdateAlbumRequest } from '../types';
 import * as albumApi from '../api/albumApi';
 
@@ -7,9 +7,6 @@ export const useAlbumStore = defineStore('album', () => {
   const currentAlbum = ref<AlbumResponse | null>(null);
   const isLoading = ref(false);
   const isGeneratingBook = ref(false);
-
-  const selectedActivityCount = computed(() => currentAlbum.value?.selectedActivityCount ?? 0);
-  const hasPhoto = computed(() => currentAlbum.value?.hasPhoto ?? false);
 
   const fetchAlbum = async (id: number) => {
     isLoading.value = true;
@@ -71,8 +68,6 @@ export const useAlbumStore = defineStore('album', () => {
     currentAlbum,
     isLoading,
     isGeneratingBook,
-    selectedActivityCount,
-    hasPhoto,
     fetchAlbum,
     createAlbum,
     updateAlbum,

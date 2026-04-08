@@ -2,9 +2,8 @@ package com.sweetbook.server.credit.dto;
 
 public record ChargeCreditResponse(
         String transactionUid,
-        Long amount,
-        Long balanceAfter,
+        long amount,
+        long balanceAfter,
         String currency
 ) {
 }
-

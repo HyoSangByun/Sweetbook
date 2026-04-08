@@ -1,11 +1,12 @@
-<template>
+﻿<template>
   <div class="dashboard-page">
     <header class="page-header">
       <div class="container header-content">
         <h1 class="logo">SweetBook</h1>
         <div class="user-actions">
           <button @click="goToCredits" class="btn-credits">크레딧</button>
-          <button @click="goToOrders" class="btn-credits">주문 목록</button>
+          <button @click="goToOrderList" class="btn-credits">주문 목록</button>
+          <button @click="goToOrderCreate" class="btn-credits">주문하기</button>
           <button @click="goToBooks" class="btn-credits">책 목록</button>
         </div>
       </div>
@@ -83,7 +84,7 @@
                 @click="handleCreateAlbum"
                 class="btn-create-album"
                 :disabled="albumStore.isLoading || !canCreateAlbum"
-                :title="!canCreateAlbum ? `최소 ${MIN_ACTIVITY_COUNT}개를 선택하세요.` : '선택한 활동으로 앨범 생성'"
+                :title="!canCreateAlbum ? `최소 ${MIN_ACTIVITY_COUNT}개를 선택하세요` : '선택한 활동으로 앨범 생성'"
               >
                 {{ albumStore.isLoading ? '생성 중...' : '앨범 생성' }}
               </button>
@@ -226,6 +227,7 @@ const handleCreateAlbum = async () => {
       month: selectedMonth.value,
       title: `${selectedMonth.value} 활동 기록`,
     });
+    localStorage.setItem('lastAlbumId', String(album.albumId));
 
     await albumStore.selectActivities(album.albumId, selectedActivityIds.value);
     router.push({ name: 'album-detail', params: { id: album.albumId } });
@@ -262,8 +264,12 @@ const goToCredits = () => {
   router.push({ name: 'credit' });
 };
 
-const goToOrders = () => {
+const goToOrderList = () => {
   router.push({ name: 'orders-overview' });
+};
+
+const goToOrderCreate = () => {
+  router.push({ name: 'order-create' });
 };
 
 const goToBooks = () => {
