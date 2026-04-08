@@ -1,4 +1,4 @@
-# SweetBook RunBook 포토북 서비스
+# SweetBook + Run 포토북 서비스
 
 ## 1. 서비스 소개
 - 한 줄 소개: 러닝 활동 데이터(Strava)를 기반으로 SweetBook 포토북을 생성하고 주문까지 연결하는 서비스입니다.
