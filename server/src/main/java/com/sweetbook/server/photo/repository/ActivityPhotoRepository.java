@@ -17,3 +17,4 @@ public interface ActivityPhotoRepository extends JpaRepository<ActivityPhoto, Lo
 
     long countByAlbumActivityId(Long albumActivityId);
 }
+

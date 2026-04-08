@@ -18,6 +18,7 @@ import com.sweetbook.server.order.dto.OrderDetailResponse;
 import com.sweetbook.server.order.dto.OrderSummaryResponse;
 import com.sweetbook.server.order.dto.UpdateOrderShippingRequest;
 import com.sweetbook.server.order.repository.OrderRepository;
+import com.sweetbook.server.sweetbook.client.SweetbookBooksClient;
 import com.sweetbook.server.sweetbook.client.SweetbookOrdersClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -28,6 +29,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,13 +49,15 @@ public class OrderService {
     private final AlbumProjectRepository albumProjectRepository;
     private final OrderRepository orderRepository;
     private final SweetbookOrdersClient sweetbookOrdersClient;
+    private final SweetbookBooksClient sweetbookBooksClient;
     private final PlatformTransactionManager transactionManager;
 
     public CreateOrderApiResponse createOrder(Long userId, Long albumId, CreateOrderApiRequest request) {
         AlbumProject albumProject = getOwnedAlbum(userId, albumId);
         validateOrderableAlbum(albumProject);
+        validateBookUidsBelongToAlbum(albumId, request);
 
-        Map<String, Object> payload = buildBasePayload(request, albumProject.getBookUid());
+        Map<String, Object> payload = buildBasePayload(request);
         String payloadJsonForRef = toCanonicalJson(payload);
         String externalRef = resolveExternalRef(albumId, request.externalRef(), payloadJsonForRef);
         payload.put("externalRef", externalRef);
@@ -316,11 +320,29 @@ public class OrderService {
         }
     }
 
-    private Map<String, Object> buildBasePayload(CreateOrderApiRequest request, String ownedBookUid) {
+    private void validateBookUidsBelongToAlbum(Long albumId, CreateOrderApiRequest request) {
+        String prefix = "album-" + albumId + "-";
+        Set<String> allowedBookUids = sweetbookBooksClient.getBooks(100, 0).stream()
+                .filter(book -> {
+                    Object externalRef = book.get("externalRef");
+                    return externalRef != null && String.valueOf(externalRef).startsWith(prefix);
+                })
+                .map(book -> String.valueOf(book.get("bookUid")))
+                .filter(uid -> uid != null && !uid.isBlank() && !"null".equals(uid))
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (CreateOrderApiRequest.Item item : request.items()) {
+            if (!allowedBookUids.contains(item.bookUid().trim())) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 bookUid는 현재 앨범에서 생성된 책이 아닙니다.");
+            }
+        }
+    }
+
+    private Map<String, Object> buildBasePayload(CreateOrderApiRequest request) {
         List<Map<String, Object>> itemMaps = request.items().stream()
                 .map(item -> {
                     Map<String, Object> map = new LinkedHashMap<>();
-                    map.put("bookUid", ownedBookUid);
+                    map.put("bookUid", item.bookUid().trim());
                     map.put("quantity", item.quantity());
                     return map;
                 })

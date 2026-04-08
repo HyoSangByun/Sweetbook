@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
@@ -24,6 +25,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.multipart.MultipartFile;
 
 @Component
 @Slf4j
@@ -31,6 +33,7 @@ import org.springframework.web.client.RestClientException;
 public class SweetbookBooksClient {
 
     private final RestClient sweetbookRestClient;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private static final ParameterizedTypeReference<SweetbookApiResponse<Map<String, Object>>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
@@ -133,6 +136,46 @@ public class SweetbookBooksClient {
     public String uploadPhoto(String bookUid, Path filePath) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new FileSystemResource(filePath));
+
+        SweetbookApiResponse<UploadBookPhotoResponseData> response;
+        try {
+            response = sweetbookRestClient.post()
+                    .uri("/v1/books/{bookUid}/photos", bookUid)
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+        } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "uploadPhoto", "POST /v1/books/{bookUid}/photos", e);
+            BusinessException be = new BusinessException(
+                    ErrorCode.SWEETBOOK_CALL_FAILED,
+                    "Failed to upload photo via Sweetbook API."
+            );
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null || response.data().fileName() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to upload photo.");
+        }
+        return response.data().fileName();
+    }
+
+    public String uploadPhoto(String bookUid, MultipartFile file) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        try {
+            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return file.getOriginalFilename();
+                }
+            };
+            body.add("file", resource);
+        } catch (java.io.IOException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid upload file.");
+        }
 
         SweetbookApiResponse<UploadBookPhotoResponseData> response;
         try {
@@ -320,9 +363,73 @@ public class SweetbookBooksClient {
         return response.data();
     }
 
+    public List<Map<String, Object>> getBookPhotos(String bookUid) {
+        SweetbookApiResponse<Object> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri("/v1/books/{bookUid}/photos", bookUid)
+                    .retrieve()
+                    .body(OBJECT_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getBookPhotos", "GET /v1/books/{bookUid}/photos", e);
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book photos.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch book photos.");
+        }
+
+        Object data = response.data();
+        if (data instanceof List<?> list) {
+            return toMapList(list);
+        }
+        if (data instanceof Map<?, ?> mapData) {
+            Object photos = mapData.get("photos");
+            if (photos instanceof List<?> list) {
+                return toMapList(list);
+            }
+        }
+        return List.of();
+    }
+
+    public List<Map<String, Object>> getBooks(int limit, int offset) {
+        SweetbookApiResponse<Object> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/v1/books")
+                            .queryParam("limit", limit)
+                            .queryParam("offset", offset)
+                            .build())
+                    .retrieve()
+                    .body(OBJECT_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getBooks", "GET /v1/books", e);
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch books.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch books.");
+        }
+
+        Object data = response.data();
+        if (data instanceof Map<?, ?> dataMap) {
+            Object books = dataMap.get("books");
+            if (books instanceof List<?> list) {
+                return toMapList(list);
+            }
+        } else if (data instanceof List<?> list) {
+            return toMapList(list);
+        }
+        return List.of();
+    }
+
     private String toJson(Map<String, Object> source) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(source == null ? Map.of() : source);
+            return objectMapper.writeValueAsString(source == null ? Map.of() : source);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Invalid template parameter payload.");
         }
