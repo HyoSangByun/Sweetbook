@@ -45,17 +45,14 @@ public class SweetbookCreditsClient {
         return response.data();
     }
 
-    public SandboxChargeResponseData chargeSandboxCredits(long amount, String memo, String idempotencyKey) {
+    public SandboxChargeResponseData chargeSandboxCredits(long amount, String idempotencyKey) {
         SweetbookApiResponse<SandboxChargeResponseData> response;
         try {
             response = sweetbookRestClient.post()
                     .uri("/v1/credits/sandbox/charge")
                     .header("Idempotency-Key", idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "amount", amount,
-                            "memo", memo == null ? "" : memo
-                    ))
+                    .body(Map.of("amount", amount))
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
@@ -69,9 +66,25 @@ public class SweetbookCreditsClient {
             throw be;
         }
 
-        if (response == null || !response.success() || response.data() == null || response.data().transactionUid() == null) {
-            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to charge sandbox credits.");
+        if (response == null || !response.success()) {
+            String reason = response == null
+                    ? "response is null"
+                    : "success=" + response.success()
+                    + ", message=" + response.message()
+                    + ", errors=" + response.errors();
+            log.error("Sweetbook sandbox charge rejected. endpoint=POST /v1/credits/sandbox/charge, amount={}, {}", amount, reason);
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to charge sandbox credits. " + reason);
         }
+
+        if (response.data() == null) {
+            log.warn(
+                    "Sweetbook sandbox charge success with empty data. endpoint=POST /v1/credits/sandbox/charge, amount={}, message={}",
+                    amount,
+                    response.message()
+            );
+            return new SandboxChargeResponseData(null, amount, null, null);
+        }
+
         return response.data();
     }
 }

@@ -79,7 +79,7 @@ const getStatusLabel = (status: OrderStatus) => {
 };
 
 const goBack = () => {
-  router.push({ name: 'order-list', params: { albumId: albumId.value } });
+  router.push({ name: 'dashboard' });
 };
 
 const handleCancel = async () => {
@@ -117,7 +117,7 @@ const handleSubmitShipping = async (payload: ShippingUpdateRequest) => {
 <template>
   <div class="order-detail-page container">
     <header class="page-header">
-      <button class="back-button" type="button" @click="goBack">목록으로</button>
+      <button class="back-button" type="button" @click="goBack">홈으로</button>
       <h1 class="page-title">주문 상세</h1>
     </header>
 

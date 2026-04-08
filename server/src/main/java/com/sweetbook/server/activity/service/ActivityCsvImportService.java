@@ -5,8 +5,6 @@ import com.sweetbook.server.activity.dto.ActivityImportResponse;
 import com.sweetbook.server.activity.repository.ActivityRepository;
 import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
-import com.sweetbook.server.user.domain.User;
-import com.sweetbook.server.user.repository.UserRepository;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -46,16 +44,12 @@ public class ActivityCsvImportService {
             DateTimeFormatter.ofPattern("yyyy/M/d", Locale.ENGLISH).withResolverStyle(ResolverStyle.SMART)
     );
 
-    private final UserRepository userRepository;
     private final ActivityRepository activityRepository;
     private final ActivityCsvHeaderNormalizer headerNormalizer;
 
     @Transactional
-    public ActivityImportResponse importCsv(Long userId, MultipartFile file) {
+    public ActivityImportResponse importCsv(MultipartFile file) {
         validateFile(file);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         int importedCount = 0;
         int skippedCount = 0;
@@ -94,8 +88,8 @@ public class ActivityCsvImportService {
                         continue;
                     }
 
-                    // 중복 방지 키: user_id + external_activity_id
-                    if (activityRepository.existsByUserIdAndExternalActivityId(userId, externalActivityId)) {
+                    // 중복 방지 키: external_activity_id
+                    if (activityRepository.existsByExternalActivityId(externalActivityId)) {
                         skippedCount++;
                         skippedRows.add(new ActivityImportResponse.SkippedRow(rowNumber, "이미 적재된 Activity ID 입니다."));
                         continue;
@@ -105,7 +99,6 @@ public class ActivityCsvImportService {
                     String activityName = trimToNull(getFirst(row, "Activity Name"));
 
                     Activity activity = Activity.builder()
-                            .user(user)
                             .externalActivityId(externalActivityId)
                             .activityType(activityType == null ? "UNKNOWN" : activityType)
                             .activityName(activityName == null ? "이름 없음" : activityName)

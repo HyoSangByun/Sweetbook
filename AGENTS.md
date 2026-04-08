@@ -1,4 +1,4 @@
-# AGENTS.md — RunBook Refactoring Guide
+﻿# AGENTS.md ??RunBook Refactoring Guide
 
 ## Instructions for the Agent
 
@@ -8,7 +8,7 @@ in Section 2.
 
 ---
 
-## Section 1 — Sweetbook Book Print API Reference
+## Section 1 ??Sweetbook Book Print API Reference
 
 > Base URLs
 > - Sandbox : `https://api-sandbox.sweetbook.com/v1`
@@ -26,13 +26,13 @@ in Section 2.
 Authorization: Bearer SB{prefix}.{secret}
 ```
 
-**Response envelope — always present**
+**Response envelope ??always present**
 ```json
 { "success": true,  "message": "...", "data": { ... } }
 { "success": false, "message": "...", "data": null, "errors": [], "fieldErrors": [] }
 ```
 
-**Pagination** — `limit` (default 20, max 100) / `offset` (default 0)
+**Pagination** ??`limit` (default 20, max 100) / `offset` (default 0)
 
 **Rate limits**
 | Policy  | Scope          | Limit       |
@@ -41,12 +41,12 @@ Authorization: Bearer SB{prefix}.{secret}
 | general | all APIs       | 300 req/min |
 | upload  | file upload    | 200 req/min |
 
-Exceeding limits → `429 Too Many Requests`, check `Retry-After` header (60 s).
+Exceeding limits ??`429 Too Many Requests`, check `Retry-After` header (60 s).
 
 **Idempotency**
 Send `Idempotency-Key: <uuid>` on `POST /books`, `POST /orders`.
-Same key + same body → returns cached response.
-Same key + different body → `409 Conflict`.
+Same key + same body ??returns cached response.
+Same key + different body ??`409 Conflict`.
 
 **HTTP error codes**
 | Code | Meaning              |
@@ -70,21 +70,21 @@ Same key + different body → `409 Conflict`.
 ```
 POST /v1/books
 Content-Type: application/json
-Idempotency-Key: <uuid>   ← recommended
+Idempotency-Key: <uuid>   ??recommended
 
 {
   "title": "string (1-255)",      // required
   "bookSpecUid": "SQUAREBOOK_HC", // required
   "specProfileUid": "sp_...",     // optional
-  "externalRef": "string (≤100)"  // optional
+  "externalRef": "string (??00)"  // optional
 }
-→ 201 { "data": { "bookUid": "bk_..." } }
+??201 { "data": { "bookUid": "bk_..." } }
 ```
 
 #### List books
 ```
 GET /v1/books?pdfStatusIn=1,2&createdFrom=2026-01-01&limit=10
-→ 200 { "data": { "books": [...], "total", "limit", "offset" } }
+??200 { "data": { "books": [...], "total", "limit", "offset" } }
 
 Book fields: bookUid, title, bookSpecUid, status, pdfStatus, pdfRequestedAt, createdAt, externalRef
 ```
@@ -105,7 +105,7 @@ Image can be provided as:
   - server fileName from /photos upload
   - "$upload" placeholder in parameters to map to uploaded file
 
-→ 201 inserted | 200 updated
+??201 inserted | 200 updated
 ```
 
 #### Upload photo
@@ -115,11 +115,11 @@ Content-Type: multipart/form-data
 Field: file (image, max 50 MB)
 
 Supported: jpg, jpeg, png, gif, bmp, webp, heic, heif
-Auto-convert: HEIC/HEIF→JPG, GIF/WebP→PNG, BMP→JPG
+Auto-convert: HEIC/HEIF?묳PG, GIF/WebP?뭁NG, BMP?묳PG
 Resize: long-axis 4000px (original), 800px (thumbnail)
-Duplicate check: MD5 hash — returns isDuplicate:true + existing fileName if duplicate
+Duplicate check: MD5 hash ??returns isDuplicate:true + existing fileName if duplicate
 
-→ 201 { "data": { "fileName": "photo....JPG", "isDuplicate": false, ... } }
+??201 { "data": { "fileName": "photo....JPG", "isDuplicate": false, ... } }
 ```
 
 #### Add content page
@@ -132,31 +132,31 @@ Fields:
   parameters    string  optional  (JSON string)
   <varName>     file    optional  (image files)
 
-required:true param missing → 400
-required:false param missing → element removed from page silently
+required:true param missing ??400
+required:false param missing ??element removed from page silently
 
-→ 201 { "data": { "result": "inserted", "breakBefore": "page", "pageCount": 4 } }
+??201 { "data": { "result": "inserted", "breakBefore": "page", "pageCount": 4 } }
 ```
 
 #### Reset content pages
 ```
 DELETE /v1/books/{bookUid}/contents
-→ 200 { "data": { "deletedPages": 15 } }
+??200 { "data": { "deletedPages": 15 } }
 (cover is preserved; for dev/test use only)
 ```
 
 #### Delete book
 ```
 DELETE /v1/books/{bookUid}
-→ 200 { "data": { "bookUid": "...", "status": 9 } }
-(soft delete — status becomes 9)
+??200 { "data": { "bookUid": "...", "status": 9 } }
+(soft delete ??status becomes 9)
 ```
 
 #### Finalize book
 ```
 POST /v1/books/{bookUid}/finalization
-→ 201 finalized | 200 already finalized (idempotent)
-→ 400 if page count violates spec rules (min/max/increment)
+??201 finalized | 200 already finalized (idempotent)
+??400 if page count violates spec rules (min/max/increment)
 
 After finalization: no more page edits allowed.
 Spine width auto-adjusted based on final page count.
@@ -182,31 +182,31 @@ Spine width auto-adjusted based on final page count.
 ```
 POST /v1/orders
 Content-Type: application/json
-Idempotency-Key: <uuid>   ← REQUIRED to prevent double-charge
+Idempotency-Key: <uuid>   ??REQUIRED to prevent double-charge
 
 {
   "items": [
     { "bookUid": "bk_...", "quantity": 1 }   // book must be FINALIZED
   ],
   "shipping": {
-    "recipientName": "string (≤100)",   // required
-    "recipientPhone": "string (≤20)",   // required
-    "postalCode": "string (≤10)",       // required
-    "address1": "string (≤200)",        // required
-    "address2": "string (≤200)",        // optional
-    "memo": "string (≤200)"             // optional
+    "recipientName": "string (??00)",   // required
+    "recipientPhone": "string (??0)",   // required
+    "postalCode": "string (??0)",       // required
+    "address1": "string (??00)",        // required
+    "address2": "string (??00)",        // optional
+    "memo": "string (??00)"             // optional
   },
-  "externalRef": "string (≤100)"        // optional
+  "externalRef": "string (??00)"        // optional
 }
-→ 201 order object (includes creditBalanceAfter)
-→ 402 if insufficient credits
+??201 order object (includes creditBalanceAfter)
+??402 if insufficient credits
 ```
 
 #### Estimate price
 ```
 POST /v1/orders/estimate
 { "items": [{ "bookUid": "bk_...", "quantity": 1 }] }
-→ 200 { "data": { productAmount, shippingFee, packagingFee, totalAmount,
+??200 { "data": { productAmount, shippingFee, packagingFee, totalAmount,
                    creditBalance, creditSufficient, currency } }
 ```
 
@@ -218,23 +218,23 @@ GET /v1/orders?status=20&from=2026-01-01&to=2026-03-31&limit=20&offset=0
 #### Get order detail
 ```
 GET /v1/orders/{orderUid}
-→ same shape as POST /orders response minus creditBalanceAfter
+??same shape as POST /orders response minus creditBalanceAfter
 ```
 
 #### Cancel order
 ```
 POST /v1/orders/{orderUid}/cancel
 { "cancelReason": "string" }
-→ only PAID + NORMAL orders cancellable
-→ credits refunded immediately in full
-→ status becomes CANCELLED_REFUND (81)
+??only PAID + NORMAL orders cancellable
+??credits refunded immediately in full
+??status becomes CANCELLED_REFUND (81)
 ```
 
 #### Update shipping address
 ```
 PATCH /v1/orders/{orderUid}/shipping
-→ allowed only in PAID ~ CONFIRMED states
-→ send only fields to change
+??allowed only in PAID ~ CONFIRMED states
+??send only fields to change
 Fields: recipientName, recipientPhone, postalCode, address1, address2, shippingMemo
 ```
 
@@ -244,16 +244,16 @@ Fields: recipientName, recipientPhone, postalCode, address1, address2, shippingM
 
 ```
 GET /v1/templates?bookSpecUid=SQUAREBOOK_HC&templateKind=cover|content&category=album
-GET /v1/templates/{templateUid}   ← includes parameters, layout, layoutRules, thumbnails
+GET /v1/templates/{templateUid}   ??includes parameters, layout, layoutRules, thumbnails
 
 GET /v1/template-categories
 ```
 
 **templateKind**
-- `cover`   → used with `POST /books/{uid}/cover`
-- `content` → used with `POST /books/{uid}/contents`
+- `cover`   ??used with `POST /books/{uid}/cover`
+- `content` ??used with `POST /books/{uid}/contents`
 
-Cover template ≠ content template. They cannot be swapped.
+Cover template ??content template. They cannot be swapped.
 
 **Parameter binding types**
 | Type       | Value                       |
@@ -274,15 +274,15 @@ GET /v1/book-specs/{bookSpecUid}
 **Available specs**
 | bookSpecUid    | Size (mm)    | Cover     | Binding   | Pages (min~max, step) |
 |----------------|--------------|-----------|-----------|----------------------|
-| SQUAREBOOK_HC  | 243 × 248    | Hardcover | PUR       | 24 ~ 130, step 2     |
-| LAYFLAT_HC     | 243 × 248    | Hardcover | LAYFLAT   | 16 ~ 46,  step 2     |
-| SLIMALBUM_HC   | 243 × 248    | Hardcover | SLIMALBUM | 20 ~ 30,  step 2     |
+| SQUAREBOOK_HC  | 243 횞 248    | Hardcover | PUR       | 24 ~ 130, step 2     |
+| LAYFLAT_HC     | 243 횞 248    | Hardcover | LAYFLAT   | 16 ~ 46,  step 2     |
+| SLIMALBUM_HC   | 243 횞 248    | Hardcover | SLIMALBUM | 20 ~ 30,  step 2     |
 
 **Price formula**
 ```
 total = priceBase + ((pageCount - pageMin) / pageIncrement) * pricePerIncrement
 ```
-Always confirm with `POST /orders/estimate` — shipping + packaging fees apply.
+Always confirm with `POST /orders/estimate` ??shipping + packaging fees apply.
 
 ---
 
@@ -290,11 +290,11 @@ Always confirm with `POST /orders/estimate` — shipping + packaging fees apply.
 
 ```
 GET /v1/credits
-→ { "data": { "balance": 100000, "currency": "KRW", "env": "test" } }
+??{ "data": { "balance": 100000, "currency": "KRW", "env": "test" } }
 ```
 
 - Sandbox and Live credits are **completely separate**.
-- **Charging credits is only possible via the Partner Portal — there is NO charge endpoint in the API.**
+- **Sandbox credit charging is allowed via `POST /v1/credits/sandbox/charge` for this project.**
 - Credits are deducted on `POST /orders` and refunded on cancel.
 - Check balance with `GET /credits` before placing an order.
 
@@ -325,7 +325,7 @@ expected    = "sha256=" + HMAC-SHA256(secretKey, signPayload).hex
 verify      = timingSafeEqual(expected, X-Webhook-Signature)
 ```
 
-**Retry policy**: up to 3 retries (1 min / 5 min / 30 min). After 3 failures → `EXHAUSTED`.
+**Retry policy**: up to 3 retries (1 min / 5 min / 30 min). After 3 failures ??`EXHAUSTED`.
 
 **Deduplication**: use `X-Webhook-Delivery` to detect duplicates.
 
@@ -364,15 +364,15 @@ All events share these common fields:
 {
   "event": "order.created", "orderUid": "or_8f3a2b1c", "bookUid": "bk_e4d5c6b7",
   "status": "PAID", "quantity": 2, "totalCredits": 35000,
-  "shippingAddress": { "recipientName": "홍길동", "phone": "010-1234-5678",
-    "zipCode": "06234", "address1": "서울특별시 강남구 테헤란로 123", "address2": "4층 401호" },
+  "shippingAddress": { "recipientName": "?띻만??, "phone": "010-1234-5678",
+    "zipCode": "06234", "address1": "?쒖슱?밸퀎??媛뺣궓援??뚰뿤?濡?123", "address2": "4痢?401?? },
   "isTest": false, "timestamp": "2025-03-15T10:30:00Z"
 }
 // order.cancelled
 {
   "event": "order.cancelled", "orderUid": "or_8f3a2b1c", "bookUid": "bk_e4d5c6b7",
   "status": "CANCELLED", "cancelledAt": "2025-03-16T11:20:00Z",
-  "cancelReason": "고객 요청에 의한 취소", "refundedCredits": 35000,
+  "cancelReason": "怨좉컼 ?붿껌???섑븳 痍⑥냼", "refundedCredits": 35000,
   "isTest": false, "timestamp": "2025-03-16T11:20:00Z"
 }
 // production.confirmed
@@ -397,14 +397,14 @@ All events share these common fields:
 
 ---
 
-## Section 2 — Issues to Resolve
+## Section 2 ??Issues to Resolve
 
 Resolve **all** issues below. Do not skip any. For each issue, understand the root cause first,
 then fix it. Do not introduce regressions.
 
 ---
 
-### ISSUE-01 · `Cannot read properties of null (reading 'accessToken')` on sign-up UI
+### ISSUE-01 쨌 `Cannot read properties of null (reading 'accessToken')` on sign-up UI
 
 **Symptom**: The error is visible in the sign-up screen.
 **Fix**: Guard against null before accessing `accessToken`. Trace where the auth/session object
@@ -414,7 +414,7 @@ state gracefully in the UI instead of crashing.
 
 ---
 
-### ISSUE-02 · Toggle left of "Import CSV" button is UX-awkward when there are no activities
+### ISSUE-02 쨌 Toggle left of "Import CSV" button is UX-awkward when there are no activities
 
 **Symptom**: On first login with no activity history, a toggle appears to the left of the
 CSV import button, which is confusing.
@@ -423,7 +423,7 @@ there is existing data to toggle between views. Show only the CSV import CTA on 
 
 ---
 
-### ISSUE-03 · Broken image display after selecting activities and attaching photos
+### ISSUE-03 쨌 Broken image display after selecting activities and attaching photos
 
 **Symptom**: After a user selects activities and attaches a photo, the image renders broken in
 the UI.
@@ -433,7 +433,7 @@ Revoke old object URLs before reassigning to avoid memory leaks.
 
 ---
 
-### ISSUE-04 · Image file is uploaded to source code when attaching a photo
+### ISSUE-04 쨌 Image file is uploaded to source code when attaching a photo
 
 **Symptom**: When a user attaches a photo during activity selection, the image file ends up
 committed or stored in the source tree.
@@ -444,18 +444,18 @@ to the local filesystem or include them in version-controlled assets.
 
 ---
 
-### ISSUE-05 · Book creation flow must expose user-facing inputs
+### ISSUE-05 쨌 Book creation flow must expose user-facing inputs
 
-**Symptom**: Users cannot set book title, book spec (판형), cover template, content template,
+**Symptom**: Users cannot set book title, book spec (?먰삎), cover template, content template,
 or content (photos optional) before creation.
 **Fix**: Add a book creation form with the following fields:
 
 | Field            | Source                              | Required |
 |------------------|-------------------------------------|----------|
 | Book title       | free text input                     | yes      |
-| BookSpec (판형)   | `GET /v1/book-specs` → dropdown     | yes      |
-| Cover template   | `GET /v1/templates?templateKind=cover&bookSpecUid=<selected>` → dropdown | yes |
-| Content template | `GET /v1/templates?templateKind=content&bookSpecUid=<selected>` → dropdown | yes |
+| BookSpec (?먰삎)   | `GET /v1/book-specs` ??dropdown     | yes      |
+| Cover template   | `GET /v1/templates?templateKind=cover&bookSpecUid=<selected>` ??dropdown | yes |
+| Content template | `GET /v1/templates?templateKind=content&bookSpecUid=<selected>` ??dropdown | yes |
 | Activities       | selected dates from running data    | yes      |
 | Photos per date  | optional file upload per activity   | no       |
 
@@ -464,7 +464,7 @@ templateUid must be passed to `POST /v1/books/{uid}/cover` and `POST /v1/books/{
 
 ---
 
-### ISSUE-06 · No book preview before payment
+### ISSUE-06 쨌 No book preview before payment
 
 **Symptom**: There is no preview step before the user proceeds to checkout.
 **Fix**: The Sweetbook API does not provide a preview endpoint. Implement a **client-side
@@ -483,7 +483,7 @@ explicitly confirms.
 
 ---
 
-### ISSUE-07 · Credit balance query is broken
+### ISSUE-07 쨌 Credit balance query is broken
 
 **Symptom**: The credit balance feature does not work.
 **Fix**: Implement `GET /v1/credits` on the backend and expose it via an internal API route
@@ -495,7 +495,7 @@ Do **not** call the Sweetbook API directly from the frontend. The API key must s
 
 ---
 
-### ISSUE-08 · Idempotency Key for credit charge must be generated server-side
+### ISSUE-08 쨌 Idempotency Key for credit charge must be generated server-side
 
 **Symptom**: The frontend currently sends the `Idempotency-Key` for credit-related requests,
 which is wrong.
@@ -507,14 +507,14 @@ Use `UUID.randomUUID().toString()` (Java) and attach it as a request header in t
 
 ---
 
-### ISSUE-09 · Credit transaction history — do NOT implement
+### ISSUE-09 쨌 Credit transaction history ??do NOT implement
 
 Credit transaction history (`GET /v1/credits/transactions` or similar) is **out of scope**.
 Do not implement it. If there is any existing stub or placeholder UI for it, remove it entirely.
 
 ---
 
-## Section 3 — Constraints
+## Section 3 ??Constraints
 
 1. **API Key security**: the Sweetbook API Key must only exist in backend environment variables.
    It must never appear in frontend code, browser network requests, or be committed to git.
@@ -522,8 +522,8 @@ Do not implement it. If there is any existing stub or placeholder UI for it, rem
    attach a freshly generated `Idempotency-Key` header.
 3. **No preview API**: Sweetbook does not offer a PDF/preview endpoint. Do not attempt to call
    one. Implement preview as a client-side summary only (see ISSUE-06).
-4. **Credits charging**: credits can only be topped up through the Partner Portal. There is no
-   charge API endpoint. Do not add any "charge credits" button that calls a backend endpoint.
+4. **Credits charging**: for this project, sandbox charge API (`POST /v1/credits/sandbox/charge`) may be used from backend and exposed to UI via internal API.
 5. **Out of scope**: credit transaction history (ISSUE-09). Do not implement.
-6. **Template–BookSpec coupling**: always filter templates by `bookSpecUid`. Never show a
+6. **Template?밄ookSpec coupling**: always filter templates by `bookSpecUid`. Never show a
    template that belongs to a different spec.
+

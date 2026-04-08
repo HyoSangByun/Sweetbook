@@ -29,9 +29,6 @@ server:
   port: ${SERVER_PORT:8080}
 
 app:
-  jwt:
-    secret: ${JWT_SECRET:please-change-this-secret-key-to-at-least-32-bytes}
-    access-token-expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION_SECONDS:3600}
   sweetbook:
     base-url: ${SWEETBOOK_API_BASE_URL:https://api-sandbox.sweetbook.com}
     api-key: ${SWEETBOOK_SANDBOX_API_KEY}

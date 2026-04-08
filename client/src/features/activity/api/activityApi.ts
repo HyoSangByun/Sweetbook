@@ -24,3 +24,15 @@ export const importCsv = (file: File) => {
   formData.append('file', file);
   return client.post<ActivityImportResponse>('/activities/import', formData);
 };
+
+export const getAllOrders = () =>
+  client.get<any[]>('/orders');
+
+export const cancelOrderByUid = (orderUid: string, cancelReason: string) =>
+  client.post<any>(`/orders/${encodeURIComponent(orderUid)}/cancel`, { cancelReason });
+
+export const updateOrderShippingByUid = (orderUid: string, recipientName: string, address1: string) =>
+  client.patch<any>(`/orders/${encodeURIComponent(orderUid)}/shipping`, { recipientName, address1 });
+
+export const getAllBooks = () =>
+  client.get<any[]>('/books');

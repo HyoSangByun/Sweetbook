@@ -38,6 +38,7 @@ public class AlbumBookGenerationService {
     private static final String FIXED_BOOK_SPEC_UID = "SQUAREBOOK_HC";
     private static final String FIXED_COVER_TEMPLATE_UID = "4Fy1mpIlm1ek";
     private static final String FIXED_CONTENT_TEMPLATE_UID = "3T09l6GEd0AL";
+    private static final String DEFAULT_CONTENT_PLACEHOLDER_IMAGE_URL = "https://placehold.co/300x200.jpg";
     private static final int MIN_ACTIVITY_COUNT = 24;
     private static final DateTimeFormatter DATE_RANGE_FORMATTER = DateTimeFormatter.ofPattern("yyyy.MM.dd");
 
@@ -46,8 +47,8 @@ public class AlbumBookGenerationService {
     private final SweetbookBooksClient sweetbookBooksClient;
 
     @Transactional
-    public CreateBookDraftResponse createDraftBook(Long userId, Long albumId, CreateBookDraftRequest request) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public CreateBookDraftResponse createDraftBook(Long albumId, CreateBookDraftRequest request) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         List<AlbumActivity> activities = albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
         if (activities.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "선택된 활동이 없어 책을 생성할 수 없습니다.");
@@ -66,26 +67,26 @@ public class AlbumBookGenerationService {
     }
 
     @Transactional(readOnly = true)
-    public UploadBookPhotoResponse uploadBookPhoto(Long userId, Long albumId, MultipartFile file) {
+    public UploadBookPhotoResponse uploadBookPhoto(Long albumId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "업로드 파일이 비어 있습니다.");
         }
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
         String fileName = sweetbookBooksClient.uploadPhoto(bookUid, file);
         return new UploadBookPhotoResponse(fileName);
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> listBookPhotos(Long userId, Long albumId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public List<Map<String, Object>> listBookPhotos(Long albumId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
         return sweetbookBooksClient.getBookPhotos(bookUid);
     }
 
     @Transactional(readOnly = true)
-    public void applyCover(Long userId, Long albumId, ApplyBookCoverRequest request) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public void applyCover(Long albumId, ApplyBookCoverRequest request) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
         Set<String> selectableFileNames = listSelectableFileNames(bookUid);
         validateSelectedFileName(selectableFileNames, request.coverPhotoFileName(), "coverPhotoFileName");
@@ -103,8 +104,8 @@ public class AlbumBookGenerationService {
     }
 
     @Transactional(readOnly = true)
-    public void addContents(Long userId, Long albumId, AddBookContentsRequest request) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public void addContents(Long albumId, AddBookContentsRequest request) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
         Map<Long, List<String>> photoFileNamesByAlbumActivityId = toPagePhotoMap(request.pages());
 
@@ -129,12 +130,17 @@ public class AlbumBookGenerationService {
 
         for (AlbumActivity albumActivity : albumActivities) {
             Activity activity = albumActivity.getActivity();
-            List<String> photoFileNames = photoFileNamesByAlbumActivityId.getOrDefault(albumActivity.getId(), List.of());
+            List<String> requestedPhotoSources = photoFileNamesByAlbumActivityId.getOrDefault(albumActivity.getId(), List.of());
+            List<String> photoFileNames = requestedPhotoSources.isEmpty()
+                    ? List.of(DEFAULT_CONTENT_PLACEHOLDER_IMAGE_URL)
+                    : requestedPhotoSources;
             for (String fileName : photoFileNames) {
-                validateSelectedFileName(selectableFileNames, fileName, "photos");
+                if (!isHttpUrl(fileName)) {
+                    validateSelectedFileName(selectableFileNames, fileName, "photos");
+                }
             }
 
-            if (photoFileNames.isEmpty()) {
+            if (false) {
                 throw new BusinessException(
                         ErrorCode.INVALID_INPUT,
                         "활동별 내지 사진은 필수입니다. albumActivityId=" + albumActivity.getId()
@@ -153,8 +159,8 @@ public class AlbumBookGenerationService {
     }
 
     @Transactional
-    public FinalizeBookResponse finalizeBook(Long userId, Long albumId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public FinalizeBookResponse finalizeBook(Long albumId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
         sweetbookBooksClient.finalizeBook(bookUid);
         LocalDateTime generatedAt = LocalDateTime.now();
@@ -163,8 +169,8 @@ public class AlbumBookGenerationService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> listAlbumBooks(Long userId, Long albumId) {
-        getOwnedAlbum(userId, albumId);
+    public List<Map<String, Object>> listAlbumBooks(Long albumId) {
+        getOwnedAlbum(albumId);
         List<Map<String, Object>> books = sweetbookBooksClient.getBooks(100, 0);
         String prefix = "album-" + albumId + "-";
         List<Map<String, Object>> filtered = new ArrayList<>();
@@ -175,6 +181,11 @@ public class AlbumBookGenerationService {
             }
         }
         return filtered;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> listAllUserBooks() {
+        return sweetbookBooksClient.getBooks(100, 0);
     }
 
     private Map<Long, List<String>> toPagePhotoMap(List<AddBookContentsRequest.ContentPageInput> pages) {
@@ -191,8 +202,8 @@ public class AlbumBookGenerationService {
         return result;
     }
 
-    private AlbumProject getOwnedAlbum(Long userId, Long albumId) {
-        return albumProjectRepository.findByIdAndUserId(albumId, userId)
+    private AlbumProject getOwnedAlbum(Long albumId) {
+        return albumProjectRepository.findById(albumId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
     }
 
@@ -325,6 +336,14 @@ public class AlbumBookGenerationService {
         if (definitions.containsKey(key) && value != null) {
             params.put(key, value);
         }
+    }
+
+    private boolean isHttpUrl(String value) {
+        if (value == null) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("http://") || normalized.startsWith("https://");
     }
 
 }

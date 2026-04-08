@@ -24,34 +24,31 @@ public class ActivityService {
     private final ActivityRepository activityRepository;
 
     @Transactional(readOnly = true)
-    public List<ActivityMonthResponse> getMonths(Long userId) {
-        return activityRepository.findDistinctMonthsByUserId(userId).stream()
+    public List<ActivityMonthResponse> getMonths() {
+        return activityRepository.findDistinctMonths().stream()
                 .map(ActivityMonthResponse::new)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<ActivitySummaryResponse> getActivitiesByMonth(Long userId, String month) {
+    public List<ActivitySummaryResponse> getActivitiesByMonth(String month) {
         String normalizedMonth = normalizeMonth(month);
-        return activityRepository.findAllByUserIdAndActivityMonthOrderByActivityDateTimeDesc(userId, normalizedMonth).stream()
+        return activityRepository.findAllByActivityMonthOrderByActivityDateTimeDesc(normalizedMonth).stream()
                 .map(this::toSummary)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public ActivityDetailResponse getActivityDetail(Long userId, Long activityId) {
-        Activity activity = activityRepository.findByIdAndUserId(activityId, userId)
+    public ActivityDetailResponse getActivityDetail(Long activityId) {
+        Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
         return toDetail(activity);
     }
 
     @Transactional(readOnly = true)
-    public ActivityStatsResponse getMonthlyStats(Long userId, String month) {
+    public ActivityStatsResponse getMonthlyStats(String month) {
         String normalizedMonth = normalizeMonth(month);
-        List<Activity> activities = activityRepository.findAllByUserIdAndActivityMonthOrderByActivityDateTimeDesc(
-                userId,
-                normalizedMonth
-        );
+        List<Activity> activities = activityRepository.findAllByActivityMonthOrderByActivityDateTimeDesc(normalizedMonth);
 
         double totalDistanceKm = 0D;
         int totalMovingTimeSeconds = 0;

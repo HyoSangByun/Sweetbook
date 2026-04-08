@@ -4,9 +4,9 @@
       <div class="container header-content">
         <h1 class="logo">SweetBook</h1>
         <div class="user-actions">
-          <span v-if="authStore.me">{{ authStore.me.email }}</span>
-          <button @click="goToCredits" class="btn-credits">Credits</button>
-          <button @click="handleLogout" class="btn-logout">Logout</button>
+          <button @click="goToCredits" class="btn-credits">크레딧</button>
+          <button @click="goToOrders" class="btn-credits">주문 목록</button>
+          <button @click="goToBooks" class="btn-credits">책 목록</button>
         </div>
       </div>
     </header>
@@ -14,14 +14,14 @@
     <main class="container">
       <section class="activity-section">
         <div class="section-header">
-          <h2 class="section-title">Activities</h2>
+          <h2 class="section-title">활동</h2>
           <div class="filter-actions">
-            <span v-if="isMonthSelectorLoading" class="month-state-text">Loading...</span>
+            <span v-if="isMonthSelectorLoading" class="month-state-text">불러오는 중...</span>
             <div v-else-if="activityLoadError" class="month-error-wrap">
-              <span class="month-state-text">Failed to load.</span>
-              <button type="button" class="btn-retry" @click="retryLoad">Retry</button>
+              <span class="month-state-text">불러오기에 실패했습니다.</span>
+              <button type="button" class="btn-retry" @click="retryLoad">다시 시도</button>
             </div>
-            <span v-else-if="!hasActivityData" class="month-state-text">No activity data</span>
+            <span v-else-if="!hasActivityData" class="month-state-text">활동 데이터가 없습니다</span>
             <select v-else v-model="selectedMonth" @change="handleMonthChange" class="month-select">
               <option v-for="month in activityStore.months" :key="month" :value="month">
                 {{ month }}
@@ -42,46 +42,52 @@
               :disabled="isImportPending"
               :aria-busy="isImportPending"
             >
-              {{ isImportPending ? 'Importing...' : 'CSV Import' }}
+              {{ isImportPending ? '가져오는 중...' : 'CSV 가져오기' }}
             </button>
           </div>
         </div>
 
         <div v-if="activityStore.stats" class="stats-banner">
           <div class="stats-item">
-            <span class="stats-label">Total activities</span>
+            <span class="stats-label">총 활동 수</span>
             <span class="stats-value">{{ activityStore.stats.totalCount }}</span>
           </div>
           <div class="stats-item">
-            <span class="stats-label">Total distance</span>
+            <span class="stats-label">총 거리</span>
             <span class="stats-value">{{ activityStore.stats.totalDistanceKm.toFixed(1) }}km</span>
           </div>
           <div class="stats-item">
-            <span class="stats-label">Total time</span>
+            <span class="stats-label">총 시간</span>
             <span class="stats-value">{{ formatDuration(activityStore.stats.totalMovingTimeSeconds) }}</span>
           </div>
         </div>
 
-        <div v-if="activityStore.isLoading" class="loading-state">
-          Loading...
-        </div>
-        <div v-else-if="activityLoadError" class="empty-state">
-          Failed to load data. Please retry.
-        </div>
+        <div v-if="activityStore.isLoading" class="loading-state">불러오는 중...</div>
+        <div v-else-if="activityLoadError" class="empty-state">데이터를 불러오지 못했습니다. 다시 시도해 주세요.</div>
         <div v-else-if="activityStore.activities.length === 0" class="empty-state">
-          No activities for this month. Import CSV to continue.
+          이번 달 활동이 없습니다. CSV를 가져와 시작해 주세요.
         </div>
         <div v-else class="activity-grid-container">
-          <div class="selection-banner" v-if="selectedActivityIds.length > 0">
+          <div class="selection-banner">
             <div class="selection-info">
-              <span>{{ selectedActivityIds.length }} selected</span>
+              <span>{{ selectedActivityIds.length }}개 선택됨</span>
               <span v-if="!canCreateAlbum" class="selection-hint">
-                최소 {{ MIN_ACTIVITY_COUNT }}개 이상 선택해야 Create Album이 가능합니다.
+                최소 {{ MIN_ACTIVITY_COUNT }}개 이상 선택해야 앨범 생성이 가능합니다.
               </span>
             </div>
-            <button @click="handleCreateAlbum" class="btn-create-album" :disabled="albumStore.isLoading || !canCreateAlbum">
-              {{ albumStore.isLoading ? 'Creating...' : 'Create Album' }}
-            </button>
+            <div class="selection-actions">
+              <button type="button" @click="toggleSelectAll" class="btn-select-all">
+                {{ isAllSelected ? '전체 해제' : '전체 선택' }}
+              </button>
+              <button
+                @click="handleCreateAlbum"
+                class="btn-create-album"
+                :disabled="albumStore.isLoading || !canCreateAlbum"
+                :title="!canCreateAlbum ? `최소 ${MIN_ACTIVITY_COUNT}개를 선택하세요.` : '선택한 활동으로 앨범 생성'"
+              >
+                {{ albumStore.isLoading ? '생성 중...' : '앨범 생성' }}
+              </button>
+            </div>
           </div>
 
           <div class="activity-grid">
@@ -115,10 +121,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useActivityStore } from '../store';
 import { useAlbumStore } from '../../album/store';
-import { useAuthStore } from '../../auth/store';
 
 const router = useRouter();
-const authStore = useAuthStore();
 const activityStore = useActivityStore();
 const albumStore = useAlbumStore();
 
@@ -130,7 +134,12 @@ const activityLoadError = ref<string | null>(null);
 const isMonthSelectorLoading = ref(false);
 const isImportPending = ref(false);
 const MIN_ACTIVITY_COUNT = 24;
+
 const canCreateAlbum = computed(() => selectedActivityIds.value.length >= MIN_ACTIVITY_COUNT);
+const isAllSelected = computed(() => {
+  return activityStore.activities.length > 0
+    && selectedActivityIds.value.length === activityStore.activities.length;
+});
 
 onMounted(async () => {
   await retryLoad();
@@ -145,7 +154,7 @@ const loadActivityData = async (month: string) => {
     ]);
     activityLoadError.value = null;
   } catch (err: any) {
-    activityLoadError.value = err?.message || 'Failed to load activity data.';
+    activityLoadError.value = err?.message || '활동 데이터를 불러오지 못했습니다.';
     throw err;
   }
 };
@@ -170,19 +179,18 @@ const retryLoad = async () => {
     }
     await loadActivityData(selectedMonth.value);
   } catch (err: any) {
-    activityLoadError.value = err?.message || 'Failed to load activity list.';
+    activityLoadError.value = err?.message || '활동 목록을 불러오지 못했습니다.';
   } finally {
     isMonthSelectorLoading.value = false;
   }
 };
 
 const handleMonthChange = async () => {
-  if (selectedMonth.value) {
-    try {
-      await loadActivityData(selectedMonth.value);
-    } catch {
-      // Error state is shown by activityLoadError.
-    }
+  if (!selectedMonth.value) return;
+  try {
+    await loadActivityData(selectedMonth.value);
+  } catch {
+    // handled by activityLoadError
   }
 };
 
@@ -195,19 +203,34 @@ const toggleSelection = (id: number) => {
   }
 };
 
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedActivityIds.value = [];
+    return;
+  }
+  selectedActivityIds.value = activityStore.activities.map((activity) => activity.activityId);
+};
+
 const handleCreateAlbum = async () => {
-  if (!selectedMonth.value || !canCreateAlbum.value) return;
+  if (!selectedMonth.value) {
+    window.alert('선택된 월이 없습니다.');
+    return;
+  }
+  if (!canCreateAlbum.value) {
+    window.alert(`활동은 최소 ${MIN_ACTIVITY_COUNT}개 이상 선택해야 합니다.`);
+    return;
+  }
 
   try {
     const album = await albumStore.createAlbum({
       month: selectedMonth.value,
-      title: `${selectedMonth.value} activity log`,
+      title: `${selectedMonth.value} 활동 기록`,
     });
 
     await albumStore.selectActivities(album.albumId, selectedActivityIds.value);
     router.push({ name: 'album-detail', params: { id: album.albumId } });
   } catch (err: any) {
-    alert('Failed to create album: ' + (err.message || 'Unknown error'));
+    window.alert('앨범 생성에 실패했습니다: ' + (err?.message || '알 수 없는 오류'));
   }
 };
 
@@ -220,28 +243,31 @@ const handleImport = async (event: Event) => {
   if (isImportPending.value) return;
 
   const target = event.target as HTMLInputElement;
-  if (target.files && target.files.length > 0) {
-    isImportPending.value = true;
-    try {
-      await activityStore.importActivities(target.files[0]);
-      alert('Import complete.');
-      await retryLoad();
-    } catch (err: any) {
-      alert('Import failed: ' + (err.message || 'Unknown error'));
-    } finally {
-      target.value = '';
-      isImportPending.value = false;
-    }
-  }
-};
+  if (!target.files || target.files.length === 0) return;
 
-const handleLogout = () => {
-  authStore.logout();
-  router.push({ name: 'login' });
+  isImportPending.value = true;
+  try {
+    await activityStore.importActivities(target.files[0]);
+    window.alert('가져오기가 완료되었습니다.');
+    await retryLoad();
+  } catch (err: any) {
+    window.alert('가져오기에 실패했습니다: ' + (err?.message || '알 수 없는 오류'));
+  } finally {
+    target.value = '';
+    isImportPending.value = false;
+  }
 };
 
 const goToCredits = () => {
   router.push({ name: 'credit' });
+};
+
+const goToOrders = () => {
+  router.push({ name: 'orders-overview' });
+};
+
+const goToBooks = () => {
+  router.push({ name: 'books-overview' });
 };
 
 const formatDate = (dateStr: string) => {
@@ -289,17 +315,9 @@ const formatDuration = (seconds: number) => {
 .user-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   font-size: 0.875rem;
   color: var(--color-olive-gray);
-}
-
-.btn-logout {
-  background: none;
-  color: var(--color-terracotta);
-  font-size: 0.875rem;
-  padding: 4px 8px;
-  font-weight: 500;
 }
 
 .btn-credits {
@@ -417,7 +435,7 @@ const formatDuration = (seconds: number) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  box-shadow: rgba(0, 0, 0, 0.2) 0px 8px 24px;
+  box-shadow: rgba(0, 0, 0, 0.2) 0 8px 24px;
 }
 
 .selection-info {
@@ -425,9 +443,24 @@ const formatDuration = (seconds: number) => {
   gap: 4px;
 }
 
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .selection-hint {
   font-size: 0.8125rem;
   color: #ffd6c7;
+}
+
+.btn-select-all {
+  background-color: transparent;
+  color: var(--color-white);
+  padding: 8px 12px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
 .btn-create-album {
@@ -436,6 +469,11 @@ const formatDuration = (seconds: number) => {
   padding: 8px 16px;
   font-weight: 500;
   font-size: 0.875rem;
+}
+
+.btn-create-album:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .activity-card {
@@ -472,18 +510,9 @@ const formatDuration = (seconds: number) => {
   border-color: var(--color-terracotta);
 }
 
-.checkbox.checked::after {
-  content: '✓';
-  color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 14px;
-}
-
 .activity-card:hover {
   transform: translateY(-4px);
-  box-shadow: rgba(0, 0, 0, 0.05) 0px 4px 24px;
+  box-shadow: rgba(0, 0, 0, 0.05) 0 4px 24px;
 }
 
 .activity-type {

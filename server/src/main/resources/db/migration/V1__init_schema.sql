@@ -1,15 +1,5 @@
-CREATE TABLE IF NOT EXISTS users (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(320) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS activities (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
     external_activity_id VARCHAR(100) NOT NULL,
     activity_type VARCHAR(50) NOT NULL,
     activity_name VARCHAR(200) NOT NULL,
@@ -24,16 +14,14 @@ CREATE TABLE IF NOT EXISTS activities (
     calories INT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_activities_user_external UNIQUE (user_id, external_activity_id),
-    CONSTRAINT fk_activities_user FOREIGN KEY (user_id) REFERENCES users(id)
+    CONSTRAINT uk_activities_external UNIQUE (external_activity_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_activities_user_month ON activities(user_id, activity_month);
+CREATE INDEX IF NOT EXISTS idx_activities_month ON activities(activity_month);
 CREATE INDEX IF NOT EXISTS idx_activities_external_id ON activities(external_activity_id);
 
 CREATE TABLE IF NOT EXISTS album_projects (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
     album_month VARCHAR(7) NOT NULL,
     title VARCHAR(150) NOT NULL,
     subtitle VARCHAR(300),
@@ -45,8 +33,7 @@ CREATE TABLE IF NOT EXISTS album_projects (
     book_finalization_pending BOOLEAN NOT NULL DEFAULT FALSE,
     book_generated_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_album_projects_user FOREIGN KEY (user_id) REFERENCES users(id)
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS album_activities (

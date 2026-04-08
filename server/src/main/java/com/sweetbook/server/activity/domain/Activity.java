@@ -1,15 +1,11 @@
 package com.sweetbook.server.activity.domain;
 
-import com.sweetbook.server.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
@@ -29,10 +25,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Table(
         name = "activities",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_activities_user_external", columnNames = {"user_id", "external_activity_id"})
+                @UniqueConstraint(name = "uk_activities_external", columnNames = {"external_activity_id"})
         },
         indexes = {
-                @Index(name = "idx_activities_user_month", columnList = "user_id,activity_month"),
+                @Index(name = "idx_activities_month", columnList = "activity_month"),
                 @Index(name = "idx_activities_external_id", columnList = "external_activity_id")
         }
 )
@@ -41,10 +37,6 @@ public class Activity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
 
     @Column(name = "external_activity_id", nullable = false, length = 100)
     private String externalActivityId;
