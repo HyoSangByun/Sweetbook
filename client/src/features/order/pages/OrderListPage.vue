@@ -5,6 +5,7 @@ import { useAlbumStore } from '../../album/store';
 import * as albumApi from '../../album/api/albumApi';
 import { useOrderStore } from '../store';
 import type { OrderRequest, OrderStatus } from '../types';
+import { openKakaoPostcode } from '../../../shared/utils/kakaoPostcode';
 
 const route = useRoute();
 const router = useRouter();
@@ -30,9 +31,7 @@ const selectedBookUid = ref<string | null>(null);
 const booksLoadError = ref<string | null>(null);
 
 const loadPage = async () => {
-  if (!albumId.value) {
-    return;
-  }
+  if (!albumId.value) return;
 
   await Promise.all([
     orderStore.fetchOrders(albumId.value),
@@ -191,6 +190,16 @@ const goToDetail = (orderId: number) => {
 const goBack = () => {
   router.push({ name: 'album-detail', params: { id: albumId.value } });
 };
+
+const handleSearchAddress = async () => {
+  try {
+    const selected = await openKakaoPostcode();
+    createForm.postalCode = selected.zonecode;
+    createForm.address = selected.address;
+  } catch (error: any) {
+    window.alert(error?.message || '주소 검색을 열지 못했습니다.');
+  }
+};
 </script>
 
 <template>
@@ -203,7 +212,6 @@ const goBack = () => {
     <section class="create-section">
       <div class="section-header">
         <h2 class="section-title">주문 생성</h2>
-        <p class="section-subtitle">주문 API 규격에 맞는 필드만 사용합니다.</p>
       </div>
 
       <form class="create-form" @submit.prevent="handleCreateOrder">
@@ -213,7 +221,7 @@ const goBack = () => {
             <select v-model="selectedBookUid">
               <option :value="null" disabled>주문할 bookUid 선택</option>
               <option v-for="book in availableBooks" :key="book.bookUid" :value="book.bookUid">
-                {{ book.title || '(제목 없음)' }} · {{ book.bookUid }} · status={{ book.status ?? '-' }}
+                {{ book.title || '(제목 없음)' }} · {{ book.bookUid }}
               </option>
             </select>
           </label>
@@ -235,7 +243,10 @@ const goBack = () => {
 
           <label class="field">
             <span>우편번호</span>
-            <input v-model="createForm.postalCode" type="text" required placeholder="12345" />
+            <div class="inline-field">
+              <input v-model="createForm.postalCode" type="text" required placeholder="12345" />
+              <button type="button" class="search-address-button" @click="handleSearchAddress">우편번호 검색</button>
+            </div>
           </label>
 
           <label class="field field-wide">
@@ -358,6 +369,22 @@ const goBack = () => {
   gap: 4px;
   font-size: 14px;
   color: var(--color-olive-gray);
+}
+
+.inline-field {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-field input {
+  flex: 1;
+}
+
+.search-address-button {
+  white-space: nowrap;
+  background: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  padding: 10px 12px;
 }
 
 .field-wide {
@@ -499,4 +526,3 @@ const goBack = () => {
   }
 }
 </style>
-
