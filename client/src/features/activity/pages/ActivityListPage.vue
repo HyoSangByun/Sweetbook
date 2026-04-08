@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="dashboard-page">
     <header class="page-header">
       <div class="container header-content">
@@ -83,7 +83,7 @@
                 @click="handleCreateAlbum"
                 class="btn-create-album"
                 :disabled="albumStore.isLoading || !canCreateAlbum"
-                :title="!canCreateAlbum ? `최소 ${MIN_ACTIVITY_COUNT}개를 선택하세요.` : '선택한 활동으로 앨범 생성'"
+                :title="!canCreateAlbum ? `최소 ${MIN_ACTIVITY_COUNT}개를 선택하세요` : '선택한 활동으로 앨범 생성'"
               >
                 {{ albumStore.isLoading ? '생성 중...' : '앨범 생성' }}
               </button>
