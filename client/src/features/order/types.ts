@@ -16,8 +16,6 @@ export interface ShippingAddress {
 export interface OrderRequest {
   items: OrderItem[];
   shipping: ShippingAddress;
-  externalRef: string;
-  externalUserId: string;
 }
 
 export interface OrderResponse {

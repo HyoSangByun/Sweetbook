@@ -15,8 +15,6 @@ const albumId = computed(() => Number(route.params.albumId));
 
 const createForm = reactive({
   quantity: '1',
-  externalRef: '',
-  externalUserId: '',
   recipientName: '',
   phoneNumber: '',
   postalCode: '',
@@ -124,14 +122,6 @@ const validateCreateForm = () => {
     return '수량은 1 이상의 정수여야 합니다.';
   }
 
-  if (!createForm.externalRef.trim()) {
-    return 'externalRef를 입력해 주세요.';
-  }
-
-  if (!createForm.externalUserId.trim()) {
-    return 'externalUserId를 입력해 주세요.';
-  }
-
   if (!createForm.recipientName.trim()) {
     return '수령인 이름을 입력해 주세요.';
   }
@@ -181,8 +171,6 @@ const handleCreateOrder = async () => {
       address1: createForm.address.trim(),
       address2: createForm.addressDetail.trim(),
     },
-    externalRef: createForm.externalRef.trim(),
-    externalUserId: createForm.externalUserId.trim(),
   };
 
   const created = await orderStore.createOrder(albumId.value, payload);
@@ -215,7 +203,7 @@ const goBack = () => {
     <section class="create-section">
       <div class="section-header">
         <h2 class="section-title">주문 생성</h2>
-        <p class="section-subtitle">ORDER_API_CONTRACT.md 기준 필드만 사용합니다.</p>
+        <p class="section-subtitle">주문 API 규격에 맞는 필드만 사용합니다.</p>
       </div>
 
       <form class="create-form" @submit.prevent="handleCreateOrder">
@@ -233,16 +221,6 @@ const goBack = () => {
           <label class="field">
             <span>수량</span>
             <input v-model="createForm.quantity" type="number" min="1" required />
-          </label>
-
-          <label class="field">
-            <span>externalRef</span>
-            <input v-model="createForm.externalRef" type="text" required />
-          </label>
-
-          <label class="field">
-            <span>externalUserId</span>
-            <input v-model="createForm.externalUserId" type="text" required />
           </label>
 
           <label class="field">
