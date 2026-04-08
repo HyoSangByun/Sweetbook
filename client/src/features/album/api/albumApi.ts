@@ -22,18 +22,6 @@ export const selectActivities = (albumId: number, activityIds: number[]) =>
 export const deselectActivity = (albumId: number, activityId: number) => 
   client.delete<DeselectAlbumActivityResponse>(`/albums/${albumId}/activities/${activityId}`);
 
-export const getBookSpecs = () =>
-  client.get<any[]>('/albums/book-specs');
-
-export const getBookSpecDetail = (bookSpecUid: string) =>
-  client.get<any>(`/albums/book-specs/${encodeURIComponent(bookSpecUid)}`);
-
-export const getTemplates = (bookSpecUid: string, templateKind: 'cover' | 'content') =>
-  client.get<any[]>(`/albums/templates?bookSpecUid=${encodeURIComponent(bookSpecUid)}&templateKind=${templateKind}`);
-
-export const getTemplateDetail = (templateUid: string) =>
-  client.get<any>(`/albums/templates/${templateUid}`);
-
 export const createBookDraft = (albumId: number, payload: { title: string }) =>
   client.post<{ albumId: number; bookUid: string }>(`/albums/${albumId}/book/draft`, payload);
 
@@ -42,9 +30,6 @@ export const uploadBookPhoto = (albumId: number, file: File) => {
   formData.append('file', file);
   return client.post<{ fileName: string }>(`/albums/${albumId}/book/photos`, formData);
 };
-
-export const listBookPhotos = (albumId: number) =>
-  client.get<any[]>(`/albums/${albumId}/book/photos`);
 
 export const applyBookCover = (
   albumId: number,

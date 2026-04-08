@@ -13,132 +13,75 @@
         <p class="state-message">{{ albumStore.currentAlbum.month }}</p>
       </section>
 
-      <section class="card">
-        <h3 class="section-title">단계별 생성</h3>
-        <div class="stepper">
-          <button
-            v-for="step in STEP_ITEMS"
-            :key="step.step"
-            type="button"
-            class="step-chip"
-            :class="{ active: currentStep === step.step }"
-            :disabled="step.step > maxNavigableStep"
-            @click="goToStep(step.step)"
-          >
-            {{ step.label }}
-          </button>
-        </div>
-      </section>
+      <AlbumStepHeader
+        :current-step="currentStep"
+        :max-navigable-step="maxNavigableStep"
+        :step-items="STEP_ITEMS"
+        @go-to-step="goToStep"
+      />
 
-      <section class="card" v-if="currentStep === 1">
-        <h3 class="section-title">1단계: 책 Draft 생성</h3>
-        <p class="state-message">활동 선택 후 SweetBook의 POST /books를 먼저 호출합니다.</p>
-        <label class="field">
-          <span>책 제목</span>
-          <input v-model="bookTitle" type="text" maxlength="255" />
-        </label>
-        <p class="state-message">활동 최소 선택 수: 24개</p>
-        <p class="state-message">고정 판형: <strong>SQUAREBOOK_HC</strong></p>
-        <button class="btn-primary" :disabled="isCreatingDraft || !canCreateDraft" @click="createDraftBook">
-          {{ isCreatingDraft ? '생성 중...' : '책 Draft 생성' }}
-        </button>
-        <p v-if="bookUid" class="success-message">생성된 bookUid: {{ bookUid }}</p>
-      </section>
+      <AlbumStepDraft
+        v-if="currentStep === 1"
+        :book-title="bookTitle"
+        :can-create-draft="canCreateDraft"
+        :is-creating-draft="isCreatingDraft"
+        :min-activity-count="MIN_ACTIVITY_COUNT"
+        @update:book-title="bookTitle = $event"
+        @create-draft="createDraftBook"
+      />
 
-      <section class="card" v-if="currentStep === 2">
-        <h3 class="section-title">2단계: 사진 업로드</h3>
-        <p class="state-message">bookUid 기준으로 POST /books/{bookUid}/photos를 수행합니다.</p>
+      <AlbumStepPhotos
+        v-if="currentStep === 2"
+        :book-uid="bookUid"
+        :is-uploading-photo="isUploadingPhoto"
+        :cover-front-preview-url="coverFrontPreviewUrl"
+        :cover-front-file-name="coverFrontFileName"
+        :selected-activities="albumStore.currentAlbum.selectedActivities"
+        :activity-photos="activityPhotos"
+        @cover-file-change="onCoverFileChange"
+        @activity-files-change="onActivityFilesChange"
+      />
 
-        <div class="field-grid">
-          <label class="field">
-            <span>표지 메인 사진 (필수)</span>
-            <input type="file" accept="image/*" @change="onCoverFileChange($event)" :disabled="!bookUid || isUploadingPhoto" />
-          </label>
-        </div>
+      <AlbumStepCover
+        v-if="currentStep === 3"
+        :book-uid="bookUid"
+        :cover-subtitle="coverSubtitle"
+        :can-apply-cover="canApplyCover"
+        :is-applying-cover="isApplyingCover"
+        :is-cover-applied="isCoverApplied"
+        @update:cover-subtitle="coverSubtitle = $event"
+        @apply-cover="applyCover"
+      />
 
-        <div class="thumb-row">
-          <div class="thumb-col">
-            <p>표지 메인</p>
-            <img v-if="coverFrontPreviewUrl" :src="coverFrontPreviewUrl" class="thumb" alt="표지 메인" />
-            <p v-if="coverFrontFileName" class="state-message">{{ coverFrontFileName }}</p>
-          </div>
-        </div>
+      <AlbumStepContents
+        v-if="currentStep === 4"
+        :can-add-contents="canAddContents"
+        :is-adding-contents="isAddingContents"
+        :is-contents-added="isContentsAdded"
+        @add-contents="addContents"
+      />
 
-        <div v-if="albumStore.currentAlbum.selectedActivities.length > 0" class="activity-list">
-          <article v-for="activity in albumStore.currentAlbum.selectedActivities" :key="activity.albumActivityId" class="activity-item">
-            <div class="activity-meta">
-              <strong>{{ formatDate(activity.activityDateTime) }}</strong>
-              <span>{{ activity.activityName }}</span>
-              <span>{{ activity.distanceKm.toFixed(2) }}km</span>
-            </div>
-            <label class="field">
-              <span>활동 사진 (선택, 다중 업로드)</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                @change="onActivityFilesChange(activity.albumActivityId, $event)"
-                :disabled="!bookUid || isUploadingPhoto"
-              />
-            </label>
-            <div class="preview-list">
-              <div v-for="item in activityPhotos[activity.albumActivityId] || []" :key="item.fileName" class="preview-item">
-                <img :src="item.previewUrl" class="preview-image" alt="활동 사진" />
-                <span class="state-message">{{ item.fileName }}</span>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
+      <AlbumStepFinalize
+        v-if="currentStep === 5"
+        :can-finalize="canFinalize"
+        :is-finalizing="isFinalizing"
+        :is-finalized="isFinalized"
+        @finalize-book="finalizeBook"
+      />
 
-      <section class="card" v-if="currentStep === 3">
-        <h3 class="section-title">3단계: 표지 적용</h3>
-        <p class="state-message">고정 템플릿 UID: <strong>4Fy1mpIlm1ek</strong></p>
-        <label class="field">
-          <span>표지 부제목 (기본값: 책 제목)</span>
-          <input v-model="coverSubtitle" type="text" maxlength="255" :disabled="!bookUid" />
-        </label>
-        <button class="btn-primary" :disabled="!canApplyCover || isApplyingCover" @click="applyCover">
-          {{ isApplyingCover ? '적용 중...' : '표지 추가' }}
-        </button>
-        <p v-if="isCoverApplied" class="success-message">표지 적용 완료</p>
-      </section>
+      <AlbumStepOrder
+        v-if="currentStep === 6"
+        :finalized-book-uid-in-flow="finalizedBookUidInFlow"
+        :finalized-book-title-in-flow="finalizedBookTitleInFlow"
+        @go-to-order="goToOrder"
+      />
 
-      <section class="card" v-if="currentStep === 4">
-        <h3 class="section-title">4단계: 내지 추가</h3>
-        <p class="state-message">고정 템플릿 UID: <strong>3T09l6GEd0AL</strong></p>
-        <p class="state-message">사진을 선택하지 않으면 기본 이미지(https://placehold.co/300x200.jpg)가 자동 적용됩니다.</p>
-        <button class="btn-primary" :disabled="!canAddContents || isAddingContents" @click="addContents">
-          {{ isAddingContents ? '추가 중...' : '내지 추가' }}
-        </button>
-        <p v-if="isContentsAdded" class="success-message">내지 추가 완료</p>
-      </section>
-
-      <section class="card" v-if="currentStep === 5">
-        <h3 class="section-title">5단계: 최종화</h3>
-        <button class="btn-primary" :disabled="!canFinalize || isFinalizing" @click="finalizeBook">
-          {{ isFinalizing ? '최종화 중...' : '최종화 완료' }}
-        </button>
-        <p v-if="isFinalized" class="success-message">최종화 완료</p>
-      </section>
-
-      <section class="card" v-if="currentStep === 6">
-        <h3 class="section-title">6단계: 주문 진행</h3>
-        <p class="state-message">이번에 최종화된 책 정보입니다.</p>
-        <div v-if="finalizedBookUidInFlow" class="finalized-summary">
-          <p><strong>{{ finalizedBookTitleInFlow || '(제목 없음)' }}</strong></p>
-          <p class="state-message">bookUid: {{ finalizedBookUidInFlow }}</p>
-        </div>
-        <p v-else class="error-message">이번 생성에서 최종화된 책이 없어 주문으로 이동할 수 없습니다.</p>
-        <button class="btn-primary" :disabled="!finalizedBookUidInFlow" @click="goToOrder">
-          주문하러 가기
-        </button>
-      </section>
-
-      <section class="card step-nav">
-        <button type="button" class="btn-secondary" :disabled="currentStep <= 1" @click="goPrevStep">이전 단계</button>
-        <button type="button" class="btn-secondary" :disabled="currentStep >= maxNavigableStep" @click="goNextStep">다음 단계</button>
-      </section>
+      <AlbumStepNav
+        :current-step="currentStep"
+        :max-navigable-step="maxNavigableStep"
+        @prev="goPrevStep"
+        @next="goNextStep"
+      />
 
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </main>
@@ -150,11 +93,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlbumStore } from '../store';
 import * as albumApi from '../api/albumApi';
-
-type UploadedPhotoItem = {
-  fileName: string;
-  previewUrl: string;
-};
+import AlbumStepHeader from '../components/steps/AlbumStepHeader.vue';
+import AlbumStepDraft from '../components/steps/AlbumStepDraft.vue';
+import AlbumStepPhotos, { type UploadedPhotoItem } from '../components/steps/AlbumStepPhotos.vue';
+import AlbumStepCover from '../components/steps/AlbumStepCover.vue';
+import AlbumStepContents from '../components/steps/AlbumStepContents.vue';
+import AlbumStepFinalize from '../components/steps/AlbumStepFinalize.vue';
+import AlbumStepOrder from '../components/steps/AlbumStepOrder.vue';
+import AlbumStepNav from '../components/steps/AlbumStepNav.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -190,7 +136,7 @@ const STEP_ITEMS = [
   { step: 3, label: '3. 표지' },
   { step: 4, label: '4. 내지' },
   { step: 5, label: '5. 최종화' },
-  { step: 6, label: '6. 책 선택' },
+  { step: 6, label: '6. 주문' },
 ] as const;
 
 const albumId = computed(() => Number(route.params.id));
@@ -200,19 +146,14 @@ const canCreateDraft = computed(() => {
   return count >= MIN_ACTIVITY_COUNT && bookTitle.value.trim().length > 0;
 });
 
-const canApplyCover = computed(() => {
-  return !!bookUid.value && !!coverFrontFileName.value;
-});
+const canApplyCover = computed(() => !!bookUid.value && !!coverFrontFileName.value);
 
 const canAddContents = computed(() => {
   if (!bookUid.value || !isCoverApplied.value || !albumStore.currentAlbum) return false;
-  if (albumStore.currentAlbum.selectedActivities.length < MIN_ACTIVITY_COUNT) return false;
-  return true;
+  return albumStore.currentAlbum.selectedActivities.length >= MIN_ACTIVITY_COUNT;
 });
 
-const canFinalize = computed(() => {
-  return !!bookUid.value && isCoverApplied.value && isContentsAdded.value;
-});
+const canFinalize = computed(() => !!bookUid.value && isCoverApplied.value && isContentsAdded.value);
 
 const maxNavigableStep = computed(() => {
   if (isFinalized.value) return 6;
@@ -242,17 +183,11 @@ const loadAlbumData = async () => {
   fetchError.value = null;
   try {
     await albumStore.fetchAlbum(albumId.value);
-    if (albumStore.currentAlbum) {
-      if (!bookTitle.value) {
-        bookTitle.value = albumStore.currentAlbum.title;
-      }
-      if (!coverSubtitle.value) {
-        coverSubtitle.value = albumStore.currentAlbum.title;
-      }
-      if (albumStore.currentAlbum.bookUid) {
-        bookUid.value = albumStore.currentAlbum.bookUid;
-      }
-    }
+    if (!albumStore.currentAlbum) return;
+
+    if (!bookTitle.value) bookTitle.value = albumStore.currentAlbum.title;
+    if (!coverSubtitle.value) coverSubtitle.value = albumStore.currentAlbum.title;
+    if (albumStore.currentAlbum.bookUid) bookUid.value = albumStore.currentAlbum.bookUid;
   } catch (err: any) {
     fetchError.value = err?.message || '앨범 조회에 실패했습니다.';
   }
@@ -267,10 +202,7 @@ const replacePreview = (file: File) => {
 const createDraftBook = async () => {
   if (!albumId.value || isCreatingDraft.value || !canCreateDraft.value) return;
   errorMessage.value = null;
-  if ((albumStore.currentAlbum?.selectedActivities.length ?? 0) < MIN_ACTIVITY_COUNT) {
-    errorMessage.value = `활동은 최소 ${MIN_ACTIVITY_COUNT}개 이상 선택해야 합니다.`;
-    return;
-  }
+
   isCreatingDraft.value = true;
   try {
     await albumStore.updateAlbum(albumId.value, { title: bookTitle.value.trim() });
@@ -285,7 +217,7 @@ const createDraftBook = async () => {
     await loadAlbumData();
     currentStep.value = 2;
   } catch (err: any) {
-    errorMessage.value = err?.message || '책 draft 생성에 실패했습니다.';
+    errorMessage.value = err?.message || '책 Draft 생성에 실패했습니다.';
   } finally {
     isCreatingDraft.value = false;
   }
@@ -329,10 +261,7 @@ const onActivityFilesChange = async (albumActivityId: number, event: Event) => {
     for (const file of files) {
       const fileName = await uploadSinglePhoto(file);
       if (!fileName) continue;
-      uploadedItems.push({
-        fileName,
-        previewUrl: URL.createObjectURL(file),
-      });
+      uploadedItems.push({ fileName, previewUrl: URL.createObjectURL(file) });
     }
     const prev = activityPhotos.value[albumActivityId] ?? [];
     activityPhotos.value[albumActivityId] = [...prev, ...uploadedItems];
@@ -347,6 +276,7 @@ const onActivityFilesChange = async (albumActivityId: number, event: Event) => {
 const applyCover = async () => {
   if (!albumId.value || !canApplyCover.value || isApplyingCover.value) return;
   errorMessage.value = null;
+
   isApplyingCover.value = true;
   try {
     await albumApi.applyBookCover(albumId.value, {
@@ -365,6 +295,7 @@ const applyCover = async () => {
 const addContents = async () => {
   if (!albumId.value || !albumStore.currentAlbum || !canAddContents.value || isAddingContents.value) return;
   errorMessage.value = null;
+
   isAddingContents.value = true;
   try {
     const pages = albumStore.currentAlbum.selectedActivities.map((activity) => ({
@@ -384,6 +315,7 @@ const addContents = async () => {
 const finalizeBook = async () => {
   if (!albumId.value || !canFinalize.value || isFinalizing.value) return;
   errorMessage.value = null;
+
   isFinalizing.value = true;
   try {
     const result = await albumStore.finalizeBook(albumId.value);
@@ -401,33 +333,21 @@ const finalizeBook = async () => {
 };
 
 const goToOrder = () => {
-  const targetBookUid = finalizedBookUidInFlow.value;
-  if (!albumId.value || !targetBookUid) return;
+  if (!albumId.value || !finalizedBookUidInFlow.value) return;
   router.push({
     name: 'order-list',
     params: { albumId: albumId.value },
-    query: { bookUid: targetBookUid },
+    query: { bookUid: finalizedBookUidInFlow.value },
   });
-};
-
-const formatDate = (value: string) => {
-  return new Date(value).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
 const revokeAllObjectUrls = () => {
   if (coverFrontPreviewUrl.value) URL.revokeObjectURL(coverFrontPreviewUrl.value);
-  Object.values(activityPhotos.value).forEach((items) => {
-    items.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-  });
+  Object.values(activityPhotos.value).forEach((items) => items.forEach((item) => URL.revokeObjectURL(item.previewUrl)));
 };
 
-onMounted(async () => {
-  await loadAlbumData();
-});
-
-onBeforeUnmount(() => {
-  revokeAllObjectUrls();
-});
+onMounted(loadAlbumData);
+onBeforeUnmount(revokeAllObjectUrls);
 </script>
 
 <style scoped>
@@ -469,10 +389,6 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
 }
 
-.card.disabled {
-  opacity: 0.65;
-}
-
 .album-title {
   margin: 0 0 6px;
 }
@@ -484,13 +400,13 @@ onBeforeUnmount(() => {
 .stepper {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 .step-chip {
   background: var(--color-warm-sand);
   color: var(--color-charcoal-warm);
-  padding: 8px 12px;
+  padding: 10px 16px;
   border: 1px solid var(--color-border-cream);
 }
 
@@ -527,13 +443,17 @@ onBeforeUnmount(() => {
 .btn-primary {
   background: var(--color-terracotta);
   color: var(--color-white);
-  padding: 10px 14px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  min-height: 44px;
 }
 
 .btn-secondary {
   background: var(--color-warm-sand);
   color: var(--color-charcoal-warm);
-  padding: 8px 12px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  min-height: 42px;
 }
 
 .btn-primary:disabled,
@@ -606,16 +526,174 @@ onBeforeUnmount(() => {
   background: var(--color-white);
 }
 
-.step-nav {
+.step-nav,
+.album-detail-page :deep(.step-nav) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.album-detail-page :deep(.card) {
+  background: var(--color-white);
+  border: 1px solid var(--color-border-cream);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.album-detail-page :deep(.section-title) {
+  margin: 0 0 12px;
+}
+
+.album-detail-page :deep(.field) {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.album-detail-page :deep(.field-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.album-detail-page :deep(.state-message) {
+  color: var(--color-olive-gray);
+  margin: 6px 0;
+}
+
+.album-detail-page :deep(.success-message) {
+  color: #2c6d47;
+  margin: 8px 0 0;
+}
+
+.album-detail-page :deep(.error-message) {
+  color: var(--color-error);
+}
+
+.album-detail-page :deep(.btn-primary) {
+  background: var(--color-terracotta);
+  color: var(--color-ivory);
+  padding: 12px 16px;
+  min-height: 44px;
+  font-size: 0.95rem;
+}
+
+.album-detail-page :deep(.btn-secondary) {
+  background: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  padding: 10px 14px;
+  min-height: 42px;
+  font-size: 0.9rem;
+}
+
+.album-detail-page :deep(.btn-primary:disabled),
+.album-detail-page :deep(.btn-secondary:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.album-detail-page :deep(.stepper) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.album-detail-page :deep(.step-chip) {
+  background: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  padding: 10px 16px;
+  border: 1px solid var(--color-border-cream);
+  min-height: 42px;
+  border-radius: 10px;
+}
+
+.album-detail-page :deep(.step-chip.active) {
+  background: var(--color-terracotta);
+  color: var(--color-white);
+}
+
+.album-detail-page :deep(.thumb-row) {
+  margin: 12px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.album-detail-page :deep(.thumb-col) {
+  display: grid;
+  gap: 8px;
+}
+
+.album-detail-page :deep(.thumb) {
+  width: 100%;
+  max-width: 360px;
+  height: 220px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--color-border-cream);
+  background: #f4f4f4;
+}
+
+.album-detail-page :deep(.activity-list) {
+  display: grid;
+  gap: 12px;
+}
+
+.album-detail-page :deep(.activity-item) {
+  border: 1px solid var(--color-border-cream);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--color-ivory);
+}
+
+.album-detail-page :deep(.activity-meta) {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.album-detail-page :deep(.preview-list) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.album-detail-page :deep(.preview-item) {
+  width: 120px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.album-detail-page :deep(.preview-image) {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--color-border-cream);
+  background: #f4f4f4;
+}
+
+.album-detail-page :deep(.preview-item .state-message) {
+  font-size: 11px;
+  line-height: 1.3;
+  word-break: break-all;
 }
 
 @media (max-width: 768px) {
   .field-grid,
-  .thumb-row {
+  .thumb-row,
+  .album-detail-page :deep(.field-grid),
+  .album-detail-page :deep(.thumb-row) {
     grid-template-columns: 1fr;
+  }
+
+  .album-detail-page :deep(.thumb) {
+    max-width: 100%;
+    height: 200px;
   }
 }
 </style>

@@ -20,7 +20,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,18 +44,21 @@ public class AlbumBookGenerationService {
     private final AlbumProjectRepository albumProjectRepository;
     private final AlbumActivityRepository albumActivityRepository;
     private final SweetbookBooksClient sweetbookBooksClient;
+    private final SweetbookBookPhotoSelector sweetbookBookPhotoSelector;
+    private final SweetbookTemplateMetadataResolver sweetbookTemplateMetadataResolver;
 
     @Transactional
     public CreateBookDraftResponse createDraftBook(Long albumId, CreateBookDraftRequest request) {
         AlbumProject albumProject = getOwnedAlbum(albumId);
         List<AlbumActivity> activities = albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
+
         if (activities.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택된 활동이 없어 책을 생성할 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "No selected activities. Cannot create book.");
         }
         if (activities.size() < MIN_ACTIVITY_COUNT) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT,
-                    "책 생성을 위해 활동을 최소 " + MIN_ACTIVITY_COUNT + "개 이상 선택해야 합니다."
+                    "At least " + MIN_ACTIVITY_COUNT + " activities are required to create a book."
             );
         }
 
@@ -69,7 +71,7 @@ public class AlbumBookGenerationService {
     @Transactional(readOnly = true)
     public UploadBookPhotoResponse uploadBookPhoto(Long albumId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "업로드 파일이 비어 있습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Upload file is empty.");
         }
         AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
@@ -88,12 +90,14 @@ public class AlbumBookGenerationService {
     public void applyCover(Long albumId, ApplyBookCoverRequest request) {
         AlbumProject albumProject = getOwnedAlbum(albumId);
         String bookUid = requireBookUid(albumProject);
-        Set<String> selectableFileNames = listSelectableFileNames(bookUid);
-        validateSelectedFileName(selectableFileNames, request.coverPhotoFileName(), "coverPhotoFileName");
+
+        Set<String> selectableFileNames = sweetbookBookPhotoSelector.listSelectableFileNames(bookUid);
+        sweetbookBookPhotoSelector.validateSelectedFileName(selectableFileNames, request.coverPhotoFileName(), "coverPhotoFileName");
         resolveFixedCoverTemplate();
+
         List<AlbumActivity> albumActivities = albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
         if (albumActivities.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택된 활동이 없어 표지 dateRange를 만들 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "No selected activities. Cannot build dateRange.");
         }
 
         Map<String, Object> params = new LinkedHashMap<>();
@@ -111,21 +115,25 @@ public class AlbumBookGenerationService {
 
         List<AlbumActivity> albumActivities = albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
         if (albumActivities.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택된 활동이 없어 내지를 추가할 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "No selected activities. Cannot add contents.");
         }
         if (albumActivities.size() < MIN_ACTIVITY_COUNT) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT,
-                    "내지 추가를 위해 활동을 최소 " + MIN_ACTIVITY_COUNT + "개 이상 선택해야 합니다."
+                    "At least " + MIN_ACTIVITY_COUNT + " activities are required to add contents."
             );
         }
 
-        Set<String> selectableFileNames = listSelectableFileNames(bookUid);
+        Set<String> selectableFileNames = sweetbookBookPhotoSelector.listSelectableFileNames(bookUid);
         Map<String, Object> contentTemplateDetail = sweetbookBooksClient.getTemplateDetail(FIXED_CONTENT_TEMPLATE_UID);
-        Map<String, Object> definitions = extractTemplateParameterDefinitions(contentTemplateDetail);
-        Set<String> requiredKeys = resolveRequiredKeys(definitions);
+        Map<String, Object> definitions = sweetbookTemplateMetadataResolver.extractDefinitions(contentTemplateDetail);
+        Set<String> requiredKeys = sweetbookTemplateMetadataResolver.resolveRequiredKeys(definitions);
+
         if (!requiredKeys.contains("dayLabel") || !requiredKeys.contains("photos")) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "고정 내지 템플릿의 필수 파라미터(dayLabel, photos)가 누락되었습니다.");
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "Required content template parameters are missing: dayLabel, photos."
+            );
         }
 
         for (AlbumActivity albumActivity : albumActivities) {
@@ -134,26 +142,21 @@ public class AlbumBookGenerationService {
             List<String> photoFileNames = requestedPhotoSources.isEmpty()
                     ? List.of(DEFAULT_CONTENT_PLACEHOLDER_IMAGE_URL)
                     : requestedPhotoSources;
+
             for (String fileName : photoFileNames) {
                 if (!isHttpUrl(fileName)) {
-                    validateSelectedFileName(selectableFileNames, fileName, "photos");
+                    sweetbookBookPhotoSelector.validateSelectedFileName(selectableFileNames, fileName, "photos");
                 }
-            }
-
-            if (false) {
-                throw new BusinessException(
-                        ErrorCode.INVALID_INPUT,
-                        "활동별 내지 사진은 필수입니다. albumActivityId=" + albumActivity.getId()
-                );
             }
 
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("dayLabel", buildDayLabel(activity));
             params.put("photos", photoFileNames);
-            putIfTemplateParameterExists(params, definitions, "activityName", activity.getActivityName());
-            putIfTemplateParameterExists(params, definitions, "activityType", activity.getActivityType());
-            putIfTemplateParameterExists(params, definitions, "distanceKm", activity.getDistanceKm());
-            putIfTemplateParameterExists(params, definitions, "memo", albumActivity.getMemo());
+            sweetbookTemplateMetadataResolver.putIfTemplateParameterExists(params, definitions, "activityName", activity.getActivityName());
+            sweetbookTemplateMetadataResolver.putIfTemplateParameterExists(params, definitions, "activityType", activity.getActivityType());
+            sweetbookTemplateMetadataResolver.putIfTemplateParameterExists(params, definitions, "distanceKm", activity.getDistanceKm());
+            sweetbookTemplateMetadataResolver.putIfTemplateParameterExists(params, definitions, "memo", albumActivity.getMemo());
+
             sweetbookBooksClient.addContent(bookUid, FIXED_CONTENT_TEMPLATE_UID, params, "page");
         }
     }
@@ -173,6 +176,7 @@ public class AlbumBookGenerationService {
         getOwnedAlbum(albumId);
         List<Map<String, Object>> books = sweetbookBooksClient.getBooks(100, 0);
         String prefix = "album-" + albumId + "-";
+
         List<Map<String, Object>> filtered = new ArrayList<>();
         for (Map<String, Object> book : books) {
             Object externalRef = book.get("externalRef");
@@ -210,31 +214,9 @@ public class AlbumBookGenerationService {
     private String requireBookUid(AlbumProject albumProject) {
         String bookUid = albumProject.getBookUid();
         if (bookUid == null || bookUid.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "책이 아직 생성되지 않았습니다. 먼저 POST /books 단계를 진행하세요.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Book is not created yet. Run POST /books first.");
         }
         return bookUid;
-    }
-
-    private Set<String> listSelectableFileNames(String bookUid) {
-        return sweetbookBooksClient.getBookPhotos(bookUid).stream()
-                .map(photo -> photo.get("fileName"))
-                .filter(value -> value != null)
-                .map(String::valueOf)
-                .filter(value -> !value.isBlank())
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    private void validateSelectedFileName(Set<String> selectableFileNames, String fileName, String fieldName) {
-        String normalized = fileName == null ? "" : fileName.trim();
-        if (normalized.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, fieldName + " 값이 비어 있습니다.");
-        }
-        if (!selectableFileNames.contains(normalized)) {
-            throw new BusinessException(
-                    ErrorCode.INVALID_INPUT,
-                    fieldName + "는 GET /books/{bookUid}/photos 에서 선택 가능한 fileName 이어야 합니다. value=" + normalized
-            );
-        }
     }
 
     private String buildDayLabel(Activity activity) {
@@ -264,8 +246,9 @@ public class AlbumBookGenerationService {
                 maxDate = date;
             }
         }
+
         if (minDate == null || maxDate == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "활동 날짜 범위를 계산할 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Cannot calculate activity date range.");
         }
         return DATE_RANGE_FORMATTER.format(minDate) + " - " + DATE_RANGE_FORMATTER.format(maxDate);
     }
@@ -285,57 +268,12 @@ public class AlbumBookGenerationService {
                 .map(String::valueOf)
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("(none)");
+
         throw new BusinessException(
                 ErrorCode.INVALID_INPUT,
-                "고정 커버 템플릿 UID를 현재 환경에서 찾을 수 없습니다. requested=" + FIXED_COVER_TEMPLATE_UID
+                "Fixed cover template UID is not available in current environment. requested=" + FIXED_COVER_TEMPLATE_UID
                         + ", available=[" + available + "]"
         );
-    }
-
-    private Map<String, Object> extractTemplateParameterDefinitions(Map<String, Object> templateDetail) {
-        Object templateObject = templateDetail.get("template");
-        Map<String, Object> templateRoot = templateDetail;
-        if (templateObject instanceof Map<?, ?> templateMap) {
-            templateRoot = toStringKeyMap(templateMap);
-        }
-        Object parametersObject = templateRoot.get("parameters");
-        if (!(parametersObject instanceof Map<?, ?> parametersMap)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Template parameters metadata is missing.");
-        }
-        Object definitionsObject = parametersMap.get("definitions");
-        if (!(definitionsObject instanceof Map<?, ?> definitionsMap)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Template parameter definitions are missing.");
-        }
-        return toStringKeyMap(definitionsMap);
-    }
-
-    private Map<String, Object> toStringKeyMap(Map<?, ?> source) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        for (Map.Entry<?, ?> entry : source.entrySet()) {
-            result.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-        return result;
-    }
-
-    private Set<String> resolveRequiredKeys(Map<String, Object> definitions) {
-        Set<String> requiredKeys = new LinkedHashSet<>();
-        for (Map.Entry<String, Object> entry : definitions.entrySet()) {
-            if (entry.getValue() instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get("required"))) {
-                requiredKeys.add(entry.getKey());
-            }
-        }
-        return requiredKeys;
-    }
-
-    private void putIfTemplateParameterExists(
-            Map<String, Object> params,
-            Map<String, Object> definitions,
-            String key,
-            Object value
-    ) {
-        if (definitions.containsKey(key) && value != null) {
-            params.put(key, value);
-        }
     }
 
     private boolean isHttpUrl(String value) {
@@ -345,5 +283,4 @@ public class AlbumBookGenerationService {
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         return normalized.startsWith("http://") || normalized.startsWith("https://");
     }
-
 }
