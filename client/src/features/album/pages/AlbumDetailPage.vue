@@ -1,10 +1,9 @@
-<template>
+﻿<template>
   <div class="album-detail-page">
     <header class="page-header">
       <div class="container header-content">
-        <router-link to="/" class="btn-back">Back to activities</router-link>
+        <router-link to="/" class="btn-back">활동 목록으로</router-link>
         <h1 class="logo">SweetBook</h1>
-        <button @click="handleLogout" class="btn-logout">Logout</button>
       </div>
     </header>
 
@@ -15,10 +14,27 @@
       </section>
 
       <section class="card">
-        <h3 class="section-title">1단계 · 책 Draft 생성</h3>
-        <p class="state-message">활동 선택이 끝나면 먼저 SweetBook의 POST /books를 호출합니다.</p>
+        <h3 class="section-title">단계별 생성</h3>
+        <div class="stepper">
+          <button
+            v-for="step in STEP_ITEMS"
+            :key="step.step"
+            type="button"
+            class="step-chip"
+            :class="{ active: currentStep === step.step }"
+            :disabled="step.step > maxNavigableStep"
+            @click="goToStep(step.step)"
+          >
+            {{ step.label }}
+          </button>
+        </div>
+      </section>
+
+      <section class="card" v-if="currentStep === 1">
+        <h3 class="section-title">1단계: 책 Draft 생성</h3>
+        <p class="state-message">활동 선택 후 SweetBook의 POST /books를 먼저 호출합니다.</p>
         <label class="field">
-          <span>Book title</span>
+          <span>책 제목</span>
           <input v-model="bookTitle" type="text" maxlength="255" />
         </label>
         <p class="state-message">활동 최소 선택 수: 24개</p>
@@ -29,8 +45,8 @@
         <p v-if="bookUid" class="success-message">생성된 bookUid: {{ bookUid }}</p>
       </section>
 
-      <section class="card" :class="{ disabled: !bookUid }">
-        <h3 class="section-title">2단계 · 사진 업로드</h3>
+      <section class="card" v-if="currentStep === 2">
+        <h3 class="section-title">2단계: 사진 업로드</h3>
         <p class="state-message">bookUid 기준으로 POST /books/{bookUid}/photos를 수행합니다.</p>
 
         <div class="field-grid">
@@ -43,7 +59,7 @@
         <div class="thumb-row">
           <div class="thumb-col">
             <p>표지 메인</p>
-            <img v-if="coverFrontPreviewUrl" :src="coverFrontPreviewUrl" class="thumb" alt="cover front" />
+            <img v-if="coverFrontPreviewUrl" :src="coverFrontPreviewUrl" class="thumb" alt="표지 메인" />
             <p v-if="coverFrontFileName" class="state-message">{{ coverFrontFileName }}</p>
           </div>
         </div>
@@ -56,7 +72,7 @@
               <span>{{ activity.distanceKm.toFixed(2) }}km</span>
             </div>
             <label class="field">
-              <span>활동 사진 (필수, 다중 업로드)</span>
+              <span>활동 사진 (선택, 다중 업로드)</span>
               <input
                 type="file"
                 accept="image/*"
@@ -67,7 +83,7 @@
             </label>
             <div class="preview-list">
               <div v-for="item in activityPhotos[activity.albumActivityId] || []" :key="item.fileName" class="preview-item">
-                <img :src="item.previewUrl" class="preview-image" alt="activity photo" />
+                <img :src="item.previewUrl" class="preview-image" alt="활동 사진" />
                 <span class="state-message">{{ item.fileName }}</span>
               </div>
             </div>
@@ -75,11 +91,11 @@
         </div>
       </section>
 
-      <section class="card" :class="{ disabled: !bookUid }">
-        <h3 class="section-title">3단계 · 표지 적용</h3>
+      <section class="card" v-if="currentStep === 3">
+        <h3 class="section-title">3단계: 표지 적용</h3>
         <p class="state-message">고정 템플릿 UID: <strong>4Fy1mpIlm1ek</strong></p>
         <label class="field">
-          <span>표지 subtitle (기본값: Book title)</span>
+          <span>표지 부제목 (기본값: 책 제목)</span>
           <input v-model="coverSubtitle" type="text" maxlength="255" :disabled="!bookUid" />
         </label>
         <button class="btn-primary" :disabled="!canApplyCover || isApplyingCover" @click="applyCover">
@@ -88,45 +104,40 @@
         <p v-if="isCoverApplied" class="success-message">표지 적용 완료</p>
       </section>
 
-      <section class="card" :class="{ disabled: !isCoverApplied }">
-        <h3 class="section-title">4단계 · 내지 추가</h3>
+      <section class="card" v-if="currentStep === 4">
+        <h3 class="section-title">4단계: 내지 추가</h3>
         <p class="state-message">고정 템플릿 UID: <strong>3T09l6GEd0AL</strong></p>
-        <p class="state-message">모든 선택 활동에 사진이 최소 1장 있어야 내지 추가가 가능합니다.</p>
+        <p class="state-message">사진을 선택하지 않으면 기본 이미지(https://placehold.co/300x200.jpg)가 자동 적용됩니다.</p>
         <button class="btn-primary" :disabled="!canAddContents || isAddingContents" @click="addContents">
           {{ isAddingContents ? '추가 중...' : '내지 추가' }}
         </button>
         <p v-if="isContentsAdded" class="success-message">내지 추가 완료</p>
       </section>
 
-      <section class="card" :class="{ disabled: !isContentsAdded }">
-        <h3 class="section-title">5단계 · 최종화</h3>
+      <section class="card" v-if="currentStep === 5">
+        <h3 class="section-title">5단계: 최종화</h3>
         <button class="btn-primary" :disabled="!canFinalize || isFinalizing" @click="finalizeBook">
           {{ isFinalizing ? '최종화 중...' : '최종화 완료' }}
         </button>
         <p v-if="isFinalized" class="success-message">최종화 완료</p>
       </section>
 
-      <section class="card">
-        <h3 class="section-title">생성된 책 목록 (GET /books)</h3>
-        <button class="btn-secondary" @click="loadCreatedBooks" :disabled="isLoadingBooks">
-          {{ isLoadingBooks ? '조회 중...' : '목록 새로고침' }}
-        </button>
-
-        <div v-if="createdBooks.length === 0" class="state-message">현재 앨범에서 생성된 책이 없습니다.</div>
-        <div v-else class="book-list">
-          <label v-for="book in createdBooks" :key="book.bookUid" class="book-item">
-            <input type="radio" name="selectedBook" :value="book.bookUid" v-model="selectedBookUid" />
-            <div>
-              <p><strong>{{ book.title || '(제목 없음)' }}</strong></p>
-              <p class="state-message">bookUid: {{ book.bookUid }}</p>
-              <p class="state-message">status: {{ book.status }}</p>
-            </div>
-          </label>
+      <section class="card" v-if="currentStep === 6">
+        <h3 class="section-title">6단계: 주문 진행</h3>
+        <p class="state-message">이번에 최종화된 책 정보입니다.</p>
+        <div v-if="finalizedBookUidInFlow" class="finalized-summary">
+          <p><strong>{{ finalizedBookTitleInFlow || '(제목 없음)' }}</strong></p>
+          <p class="state-message">bookUid: {{ finalizedBookUidInFlow }}</p>
         </div>
-
-        <button class="btn-primary" :disabled="!selectedBookUid" @click="goToOrder">
-          선택한 책으로 주문하러 가기
+        <p v-else class="error-message">이번 생성에서 최종화된 책이 없어 주문으로 이동할 수 없습니다.</p>
+        <button class="btn-primary" :disabled="!finalizedBookUidInFlow" @click="goToOrder">
+          주문하러 가기
         </button>
+      </section>
+
+      <section class="card step-nav">
+        <button type="button" class="btn-secondary" :disabled="currentStep <= 1" @click="goPrevStep">이전 단계</button>
+        <button type="button" class="btn-secondary" :disabled="currentStep >= maxNavigableStep" @click="goNextStep">다음 단계</button>
       </section>
 
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
@@ -137,7 +148,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '../../auth/store';
 import { useAlbumStore } from '../store';
 import * as albumApi from '../api/albumApi';
 
@@ -148,7 +158,6 @@ type UploadedPhotoItem = {
 
 const route = useRoute();
 const router = useRouter();
-const authStore = useAuthStore();
 const albumStore = useAlbumStore();
 
 const fetchError = ref<string | null>(null);
@@ -161,7 +170,6 @@ const isUploadingPhoto = ref(false);
 const isApplyingCover = ref(false);
 const isAddingContents = ref(false);
 const isFinalizing = ref(false);
-const isLoadingBooks = ref(false);
 
 const isCoverApplied = ref(false);
 const isContentsAdded = ref(false);
@@ -172,9 +180,18 @@ const coverFrontPreviewUrl = ref<string | null>(null);
 const coverSubtitle = ref('');
 
 const activityPhotos = ref<Record<number, UploadedPhotoItem[]>>({});
-const createdBooks = ref<Array<{ bookUid: string; title?: string; status?: number }>>([]);
-const selectedBookUid = ref<string | null>(null);
+const finalizedBookUidInFlow = ref<string | null>(null);
+const finalizedBookTitleInFlow = ref<string>('');
 const MIN_ACTIVITY_COUNT = 24;
+const currentStep = ref(1);
+const STEP_ITEMS = [
+  { step: 1, label: '1. Draft' },
+  { step: 2, label: '2. 사진' },
+  { step: 3, label: '3. 표지' },
+  { step: 4, label: '4. 내지' },
+  { step: 5, label: '5. 최종화' },
+  { step: 6, label: '6. 책 선택' },
+] as const;
 
 const albumId = computed(() => Number(route.params.id));
 
@@ -190,15 +207,35 @@ const canApplyCover = computed(() => {
 const canAddContents = computed(() => {
   if (!bookUid.value || !isCoverApplied.value || !albumStore.currentAlbum) return false;
   if (albumStore.currentAlbum.selectedActivities.length < MIN_ACTIVITY_COUNT) return false;
-  return albumStore.currentAlbum.selectedActivities.every((activity) => {
-    const photos = activityPhotos.value[activity.albumActivityId] ?? [];
-    return photos.length > 0;
-  });
+  return true;
 });
 
 const canFinalize = computed(() => {
   return !!bookUid.value && isCoverApplied.value && isContentsAdded.value;
 });
+
+const maxNavigableStep = computed(() => {
+  if (isFinalized.value) return 6;
+  if (isContentsAdded.value) return 5;
+  if (isCoverApplied.value) return 4;
+  if (bookUid.value) return 3;
+  return 1;
+});
+
+const goToStep = (step: number) => {
+  if (step < 1 || step > maxNavigableStep.value) return;
+  currentStep.value = step;
+};
+
+const goPrevStep = () => {
+  if (currentStep.value <= 1) return;
+  currentStep.value -= 1;
+};
+
+const goNextStep = () => {
+  if (currentStep.value >= maxNavigableStep.value) return;
+  currentStep.value += 1;
+};
 
 const loadAlbumData = async () => {
   if (!albumId.value) return;
@@ -218,26 +255,6 @@ const loadAlbumData = async () => {
     }
   } catch (err: any) {
     fetchError.value = err?.message || '앨범 조회에 실패했습니다.';
-  }
-};
-
-const loadCreatedBooks = async () => {
-  if (!albumId.value) return;
-  isLoadingBooks.value = true;
-  try {
-    const books = await albumApi.getAlbumBooks(albumId.value);
-    createdBooks.value = books.map((book: any) => ({
-      bookUid: String(book.bookUid),
-      title: book.title ? String(book.title) : undefined,
-      status: typeof book.status === 'number' ? book.status : undefined,
-    }));
-    if (!selectedBookUid.value && createdBooks.value.length > 0) {
-      selectedBookUid.value = createdBooks.value[0].bookUid;
-    }
-  } catch (err: any) {
-    errorMessage.value = err?.message || '책 목록 조회에 실패했습니다.';
-  } finally {
-    isLoadingBooks.value = false;
   }
 };
 
@@ -262,9 +279,11 @@ const createDraftBook = async () => {
     isCoverApplied.value = false;
     isContentsAdded.value = false;
     isFinalized.value = false;
+    finalizedBookUidInFlow.value = null;
+    finalizedBookTitleInFlow.value = '';
     coverSubtitle.value = bookTitle.value.trim();
     await loadAlbumData();
-    await loadCreatedBooks();
+    currentStep.value = 2;
   } catch (err: any) {
     errorMessage.value = err?.message || '책 draft 생성에 실패했습니다.';
   } finally {
@@ -335,6 +354,7 @@ const applyCover = async () => {
       subtitle: coverSubtitle.value.trim() || bookTitle.value.trim(),
     });
     isCoverApplied.value = true;
+    currentStep.value = 4;
   } catch (err: any) {
     errorMessage.value = err?.message || '표지 추가에 실패했습니다.';
   } finally {
@@ -345,14 +365,6 @@ const applyCover = async () => {
 const addContents = async () => {
   if (!albumId.value || !albumStore.currentAlbum || !canAddContents.value || isAddingContents.value) return;
   errorMessage.value = null;
-  const activityWithoutPhoto = albumStore.currentAlbum.selectedActivities.find((activity) => {
-    const photos = activityPhotos.value[activity.albumActivityId] ?? [];
-    return photos.length === 0;
-  });
-  if (activityWithoutPhoto) {
-    errorMessage.value = '모든 선택 활동에 사진을 최소 1장씩 업로드해야 합니다.';
-    return;
-  }
   isAddingContents.value = true;
   try {
     const pages = albumStore.currentAlbum.selectedActivities.map((activity) => ({
@@ -361,6 +373,7 @@ const addContents = async () => {
     }));
     await albumApi.addBookContents(albumId.value, { pages });
     isContentsAdded.value = true;
+    currentStep.value = 5;
   } catch (err: any) {
     errorMessage.value = err?.message || '내지 추가에 실패했습니다.';
   } finally {
@@ -375,10 +388,11 @@ const finalizeBook = async () => {
   try {
     const result = await albumStore.finalizeBook(albumId.value);
     if (result?.bookUid) {
-      selectedBookUid.value = result.bookUid;
+      finalizedBookUidInFlow.value = result.bookUid;
+      finalizedBookTitleInFlow.value = (bookTitle.value.trim() || albumStore.currentAlbum?.title || '').trim();
     }
     isFinalized.value = true;
-    await loadCreatedBooks();
+    currentStep.value = 6;
   } catch (err: any) {
     errorMessage.value = err?.message || '최종화에 실패했습니다.';
   } finally {
@@ -387,21 +401,17 @@ const finalizeBook = async () => {
 };
 
 const goToOrder = () => {
-  if (!albumId.value || !selectedBookUid.value) return;
+  const targetBookUid = finalizedBookUidInFlow.value;
+  if (!albumId.value || !targetBookUid) return;
   router.push({
     name: 'order-list',
     params: { albumId: albumId.value },
-    query: { bookUid: selectedBookUid.value },
+    query: { bookUid: targetBookUid },
   });
 };
 
 const formatDate = (value: string) => {
   return new Date(value).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-};
-
-const handleLogout = () => {
-  authStore.logout();
-  router.push({ name: 'login' });
 };
 
 const revokeAllObjectUrls = () => {
@@ -413,7 +423,6 @@ const revokeAllObjectUrls = () => {
 
 onMounted(async () => {
   await loadAlbumData();
-  await loadCreatedBooks();
 });
 
 onBeforeUnmount(() => {
@@ -452,14 +461,6 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-.btn-logout {
-  background: none;
-  color: var(--color-terracotta);
-  font-size: 0.875rem;
-  padding: 4px 8px;
-  font-weight: 500;
-}
-
 .card {
   background: var(--color-white);
   border: 1px solid var(--color-border-cream);
@@ -478,6 +479,24 @@ onBeforeUnmount(() => {
 
 .section-title {
   margin: 0 0 12px;
+}
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.step-chip {
+  background: var(--color-warm-sand);
+  color: var(--color-charcoal-warm);
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-cream);
+}
+
+.step-chip.active {
+  background: var(--color-terracotta);
+  color: var(--color-white);
 }
 
 .field-grid {
@@ -579,19 +598,18 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
-.book-list {
-  display: grid;
-  gap: 8px;
-  margin: 12px 0;
-}
-
-.book-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.finalized-summary {
   border: 1px solid var(--color-border-cream);
   border-radius: 10px;
-  padding: 10px;
+  padding: 10px 12px;
+  margin: 10px 0 12px;
+  background: var(--color-white);
+}
+
+.step-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 @media (max-width: 768px) {
