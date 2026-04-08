@@ -34,21 +34,30 @@ export const getTemplates = (bookSpecUid: string, templateKind: 'cover' | 'conte
 export const getTemplateDetail = (templateUid: string) =>
   client.get<any>(`/albums/templates/${templateUid}`);
 
-export const estimateBookOrder = (
-  albumId: number,
-  payload: { title: string; bookSpecUid: string; coverTemplateUid: string; contentTemplateUid: string }
-) =>
-  client.post<{
-    estimatedPageCount: number;
-    productAmount: number | null;
-    shippingFee: number | null;
-    packagingFee: number | null;
-    totalAmount: number | null;
-    currency: string;
-  }>(`/albums/${albumId}/book/estimate`, payload);
+export const createBookDraft = (albumId: number, payload: { title: string }) =>
+  client.post<{ albumId: number; bookUid: string }>(`/albums/${albumId}/book/draft`, payload);
 
-export const generateBookWithConfig = (
+export const uploadBookPhoto = (albumId: number, file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return client.post<{ fileName: string }>(`/albums/${albumId}/book/photos`, formData);
+};
+
+export const listBookPhotos = (albumId: number) =>
+  client.get<any[]>(`/albums/${albumId}/book/photos`);
+
+export const applyBookCover = (
   albumId: number,
-  payload: { title: string; bookSpecUid: string; coverTemplateUid: string; contentTemplateUid: string }
-) =>
-  client.post<any>(`/albums/${albumId}/book`, payload);
+  payload: { coverPhotoFileName: string; subtitle: string }
+) => client.post<void>(`/albums/${albumId}/book/cover`, payload);
+
+export const addBookContents = (
+  albumId: number,
+  payload: { pages: Array<{ albumActivityId: number; photoFileNames: string[] }> }
+) => client.post<void>(`/albums/${albumId}/book/contents`, payload);
+
+export const finalizeBook = (albumId: number) =>
+  client.post<{ albumId: number; bookUid: string; bookStatus: string; finalizedAt: string }>(`/albums/${albumId}/book/finalization`);
+
+export const getAlbumBooks = (albumId: number) =>
+  client.get<any[]>(`/albums/${albumId}/books`);

@@ -3,15 +3,14 @@ export type OrderStatus = 'CREATED' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
 export interface OrderItem {
   bookUid: string;
   quantity: number;
-  unitPrice: number;
 }
 
 export interface ShippingAddress {
   recipientName: string;
-  phoneNumber: string;
+  recipientPhone: string;
   postalCode: string;
-  address: string;
-  addressDetail: string;
+  address1: string;
+  address2: string;
 }
 
 export interface OrderRequest {

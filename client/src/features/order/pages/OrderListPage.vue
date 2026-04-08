@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlbumStore } from '../../album/store';
+import * as albumApi from '../../album/api/albumApi';
 import { useOrderStore } from '../store';
 import type { OrderRequest, OrderStatus } from '../types';
 
@@ -14,7 +15,6 @@ const albumId = computed(() => Number(route.params.albumId));
 
 const createForm = reactive({
   quantity: '1',
-  unitPrice: '0',
   externalRef: '',
   externalUserId: '',
   recipientName: '',
@@ -27,7 +27,9 @@ const createForm = reactive({
 const createValidationError = ref<string | null>(null);
 const createSuccessMessage = ref<string | null>(null);
 
-const bookUid = computed(() => albumStore.currentAlbum?.bookUid ?? null);
+const availableBooks = ref<Array<{ bookUid: string; title?: string; status?: number }>>([]);
+const selectedBookUid = ref<string | null>(null);
+const booksLoadError = ref<string | null>(null);
 
 const loadPage = async () => {
   if (!albumId.value) {
@@ -38,11 +40,34 @@ const loadPage = async () => {
     orderStore.fetchOrders(albumId.value),
     albumStore.fetchAlbum(albumId.value),
   ]);
+  await loadBooks();
 };
 
 onMounted(async () => {
+  const bookUidFromQuery = typeof route.query.bookUid === 'string' ? route.query.bookUid : null;
+  if (bookUidFromQuery) {
+    selectedBookUid.value = bookUidFromQuery;
+  }
   await loadPage();
 });
+
+const loadBooks = async () => {
+  if (!albumId.value) return;
+  booksLoadError.value = null;
+  try {
+    const books = await albumApi.getAlbumBooks(albumId.value);
+    availableBooks.value = books.map((book: any) => ({
+      bookUid: String(book.bookUid),
+      title: book.title ? String(book.title) : undefined,
+      status: typeof book.status === 'number' ? book.status : undefined,
+    }));
+    if (!selectedBookUid.value && availableBooks.value.length > 0) {
+      selectedBookUid.value = availableBooks.value[0].bookUid;
+    }
+  } catch (error: any) {
+    booksLoadError.value = error?.message || '책 목록을 불러오지 못했습니다.';
+  }
+};
 
 const formatDate = (dateString: string) => {
   if (!dateString) return '-';
@@ -90,18 +115,13 @@ const validateCreateForm = () => {
   const phonePattern = /^\d{2,3}-?\d{3,4}-?\d{4}$/;
   const postalPattern = /^\d{5}$/;
   const quantity = Number(createForm.quantity);
-  const unitPrice = Number(createForm.unitPrice);
 
-  if (!bookUid.value) {
+  if (!selectedBookUid.value) {
     return 'bookUid가 없어 주문 생성이 불가능합니다.';
   }
 
   if (!Number.isInteger(quantity) || quantity <= 0) {
     return '수량은 1 이상의 정수여야 합니다.';
-  }
-
-  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-    return '단가는 0 이상의 숫자여야 합니다.';
   }
 
   if (!createForm.externalRef.trim()) {
@@ -143,24 +163,23 @@ const handleCreateOrder = async () => {
   createSuccessMessage.value = null;
   createValidationError.value = validateCreateForm();
 
-  if (createValidationError.value || !bookUid.value) {
+  if (createValidationError.value || !selectedBookUid.value) {
     return;
   }
 
   const payload: OrderRequest = {
     items: [
       {
-        bookUid: bookUid.value,
+        bookUid: selectedBookUid.value,
         quantity: Number(createForm.quantity),
-        unitPrice: Number(createForm.unitPrice),
       },
     ],
     shipping: {
       recipientName: createForm.recipientName.trim(),
-      phoneNumber: createForm.phoneNumber.trim(),
+      recipientPhone: createForm.phoneNumber.trim(),
       postalCode: createForm.postalCode.trim(),
-      address: createForm.address.trim(),
-      addressDetail: createForm.addressDetail.trim(),
+      address1: createForm.address.trim(),
+      address2: createForm.addressDetail.trim(),
     },
     externalRef: createForm.externalRef.trim(),
     externalUserId: createForm.externalUserId.trim(),
@@ -202,18 +221,18 @@ const goBack = () => {
       <form class="create-form" @submit.prevent="handleCreateOrder">
         <div class="field-grid">
           <label class="field">
-            <span>bookUid (앨범 기준)</span>
-            <input :value="bookUid ?? ''" type="text" readonly />
+            <span>bookUid 선택</span>
+            <select v-model="selectedBookUid">
+              <option :value="null" disabled>주문할 bookUid 선택</option>
+              <option v-for="book in availableBooks" :key="book.bookUid" :value="book.bookUid">
+                {{ book.title || '(제목 없음)' }} · {{ book.bookUid }} · status={{ book.status ?? '-' }}
+              </option>
+            </select>
           </label>
 
           <label class="field">
             <span>수량</span>
             <input v-model="createForm.quantity" type="number" min="1" required />
-          </label>
-
-          <label class="field">
-            <span>단가</span>
-            <input v-model="createForm.unitPrice" type="number" min="0" required />
           </label>
 
           <label class="field">
@@ -252,11 +271,12 @@ const goBack = () => {
           </label>
         </div>
 
+        <p v-if="booksLoadError" class="error-text">{{ booksLoadError }}</p>
         <p v-if="createValidationError" class="error-text">{{ createValidationError }}</p>
         <p v-if="orderStore.createError" class="error-text">{{ orderStore.createError }}</p>
         <p v-if="createSuccessMessage" class="success-text">{{ createSuccessMessage }}</p>
 
-        <button class="create-button" type="submit" :disabled="orderStore.isCreating || !bookUid">
+        <button class="create-button" type="submit" :disabled="orderStore.isCreating || !selectedBookUid">
           {{ orderStore.isCreating ? '생성 중...' : '주문 생성' }}
         </button>
       </form>
