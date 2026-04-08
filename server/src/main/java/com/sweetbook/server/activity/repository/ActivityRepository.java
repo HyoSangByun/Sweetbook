@@ -5,21 +5,19 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
 
     @Query("""
             select distinct a.activityMonth
             from Activity a
-            where a.user.id = :userId
             order by a.activityMonth desc
             """)
-    List<String> findDistinctMonthsByUserId(@Param("userId") Long userId);
+    List<String> findDistinctMonths();
 
-    List<Activity> findAllByUserIdAndActivityMonthOrderByActivityDateTimeDesc(Long userId, String activityMonth);
+    List<Activity> findAllByActivityMonthOrderByActivityDateTimeDesc(String activityMonth);
 
-    Optional<Activity> findByIdAndUserId(Long id, Long userId);
+    Optional<Activity> findById(Long id);
 
-    boolean existsByUserIdAndExternalActivityId(Long userId, String externalActivityId);
+    boolean existsByExternalActivityId(String externalActivityId);
 }

@@ -123,4 +123,35 @@ public class SweetbookOrdersClient {
         }
         return response.data();
     }
+
+    public List<Map<String, Object>> getOrders(int limit, int offset) {
+        SweetbookApiResponse<Map<String, Object>> response;
+        try {
+            response = sweetbookRestClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/v1/orders")
+                            .queryParam("limit", limit)
+                            .queryParam("offset", offset)
+                            .build())
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+        } catch (RestClientException e) {
+            SweetbookClientErrorLogger.logRestClientException(log, "getOrders", "GET /v1/orders", e);
+            BusinessException be = new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch orders.");
+            be.initCause(e);
+            throw be;
+        }
+
+        if (response == null || !response.success() || response.data() == null) {
+            throw new BusinessException(ErrorCode.SWEETBOOK_CALL_FAILED, "Failed to fetch orders.");
+        }
+
+        Object orders = response.data().get("orders");
+        if (orders instanceof List<?> list) {
+            return list.stream()
+                    .filter(Map.class::isInstance)
+                    .map(item -> (Map<String, Object>) item)
+                    .toList();
+        }
+        return List.of();
+    }
 }

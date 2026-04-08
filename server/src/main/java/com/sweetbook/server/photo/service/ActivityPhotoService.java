@@ -39,10 +39,10 @@ public class ActivityPhotoService {
     private final PhotoStorageProperties photoStorageProperties;
 
     @Transactional
-    public ActivityPhotoUploadResponse uploadPhoto(Long userId, Long albumId, Long activityId, MultipartFile file) {
+    public ActivityPhotoUploadResponse uploadPhoto(Long albumId, Long activityId, MultipartFile file) {
         validateImageFile(file);
 
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         AlbumActivity albumActivity = albumActivityRepository
                 .findByAlbumProjectIdAndActivityId(albumProject.getId(), activityId)
                 .orElseThrow(() -> new BusinessException(
@@ -83,8 +83,8 @@ public class ActivityPhotoService {
     }
 
     @Transactional
-    public ActivityPhotoDeleteResponse deletePhoto(Long userId, Long albumId, Long activityId, Long photoId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public ActivityPhotoDeleteResponse deletePhoto(Long albumId, Long activityId, Long photoId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         AlbumActivity albumActivity = albumActivityRepository
                 .findByAlbumProjectIdAndActivityId(albumProject.getId(), activityId)
                 .orElseThrow(() -> new BusinessException(
@@ -119,8 +119,8 @@ public class ActivityPhotoService {
     }
 
     @Transactional(readOnly = true)
-    public List<ActivityPhotoItemResponse> listPhotos(Long userId, Long albumId, Long activityId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public List<ActivityPhotoItemResponse> listPhotos(Long albumId, Long activityId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         AlbumActivity albumActivity = albumActivityRepository
                 .findByAlbumProjectIdAndActivityId(albumProject.getId(), activityId)
                 .orElseThrow(() -> new BusinessException(
@@ -139,8 +139,8 @@ public class ActivityPhotoService {
                 .toList();
     }
 
-    private AlbumProject getOwnedAlbum(Long userId, Long albumId) {
-        return albumProjectRepository.findByIdAndUserId(albumId, userId)
+    private AlbumProject getOwnedAlbum(Long albumId) {
+        return albumProjectRepository.findById(albumId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
     }
 

@@ -23,7 +23,7 @@ const axiosClient = axios.create({
   },
 });
 
-// Request Interceptor: Add Authorization Header
+// Request Interceptor
 axiosClient.interceptors.request.use((config) => {
   if (typeof FormData !== 'undefined' && config.data instanceof FormData && config.headers) {
     const headers = config.headers as any;
@@ -36,10 +36,6 @@ axiosClient.interceptors.request.use((config) => {
     }
   }
 
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
   return config;
 });
 

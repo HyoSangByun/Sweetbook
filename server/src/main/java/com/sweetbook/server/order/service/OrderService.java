@@ -16,6 +16,7 @@ import com.sweetbook.server.order.dto.CreateOrderApiRequest;
 import com.sweetbook.server.order.dto.CreateOrderApiResponse;
 import com.sweetbook.server.order.dto.OrderDetailResponse;
 import com.sweetbook.server.order.dto.OrderSummaryResponse;
+import com.sweetbook.server.order.dto.UpdateOrderShippingByUidRequest;
 import com.sweetbook.server.order.dto.UpdateOrderShippingRequest;
 import com.sweetbook.server.order.repository.OrderRepository;
 import com.sweetbook.server.sweetbook.client.SweetbookBooksClient;
@@ -52,14 +53,14 @@ public class OrderService {
     private final SweetbookBooksClient sweetbookBooksClient;
     private final PlatformTransactionManager transactionManager;
 
-    public CreateOrderApiResponse createOrder(Long userId, Long albumId, CreateOrderApiRequest request) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public CreateOrderApiResponse createOrder(Long albumId, CreateOrderApiRequest request) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         validateOrderableAlbum(albumProject);
         validateBookUidsBelongToAlbum(albumId, request);
 
         Map<String, Object> payload = buildBasePayload(request);
         String payloadJsonForRef = toCanonicalJson(payload);
-        String externalRef = resolveExternalRef(albumId, request.externalRef(), payloadJsonForRef);
+        String externalRef = resolveExternalRef(albumId, payloadJsonForRef);
         payload.put("externalRef", externalRef);
 
         String payloadJson = toCanonicalJson(payload);
@@ -75,34 +76,57 @@ public class OrderService {
             orderUid = sweetbookOrdersClient.createOrder(payload, idempotencyKey);
             log.info("Sweetbook order created. albumId={}, externalRef={}, orderUid={}", albumId, externalRef, orderUid);
         } catch (BusinessException ex) {
-            markFailed(userId, albumId, externalRef, ex.getMessage());
+            markFailed(albumId, externalRef, ex.getMessage());
             log.warn("Sweetbook order create failed. albumId={}, externalRef={}, reason={}", albumId, externalRef, ex.getMessage());
             throw ex;
         } catch (RuntimeException ex) {
-            markFailed(userId, albumId, externalRef, ex.getMessage());
+            markFailed(albumId, externalRef, ex.getMessage());
             log.warn("Sweetbook order create failed unexpectedly. albumId={}, externalRef={}", albumId, externalRef, ex);
             throw ex;
         }
 
-        return markCreated(userId, albumId, externalRef, orderUid);
+        return markCreated(albumId, externalRef, orderUid);
     }
 
-    public List<OrderSummaryResponse> listOrders(Long userId, Long albumId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public List<OrderSummaryResponse> listOrders(Long albumId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         return orderRepository.findAllByAlbumProjectIdOrderByCreatedAtDesc(albumProject.getId()).stream()
                 .map(this::toSummaryResponse)
                 .toList();
     }
 
-    public OrderDetailResponse getOrder(Long userId, Long albumId, Long orderId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public List<Map<String, Object>> listAllOrders() {
+        return sweetbookOrdersClient.getOrders(100, 0);
+    }
+
+    public Map<String, Object> cancelOrderByUid(String orderUid, CancelOrderApiRequest request) {
+        if (orderUid == null || orderUid.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 비어 있습니다.");
+        }
+        return sweetbookOrdersClient.cancelOrder(orderUid.trim(), request.cancelReason());
+    }
+
+    public Map<String, Object> updateOrderShippingByUid(String orderUid, UpdateOrderShippingByUidRequest request) {
+        if (orderUid == null || orderUid.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 비어 있습니다.");
+        }
+
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("recipientName", request.recipientName().trim());
+        patch.put("address1", request.address1().trim());
+
+        return sweetbookOrdersClient.updateShipping(orderUid.trim(), patch);
+    }
+
+    public OrderDetailResponse getOrder(Long albumId, Long orderId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         Order order = orderRepository.findByIdAndAlbumProjectId(orderId, albumProject.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "주문을 찾을 수 없습니다."));
         return toDetailResponse(order);
     }
 
-    public OrderDetailResponse cancelOrder(Long userId, Long albumId, Long orderId, CancelOrderApiRequest request) {
-        Order order = getOwnedOrder(userId, albumId, orderId);
+    public OrderDetailResponse cancelOrder(Long albumId, Long orderId, CancelOrderApiRequest request) {
+        Order order = getOwnedOrder(albumId, orderId);
         validateCancelable(order);
         if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 주문을 취소할 수 없습니다.");
@@ -113,7 +137,7 @@ public class OrderService {
 
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
-            Order managedOrder = getOwnedOrder(userId, albumId, orderId);
+            Order managedOrder = getOwnedOrder(albumId, orderId);
             syncRemoteFromResponse(managedOrder, response, 80, "CANCELLED");
             managedOrder.markCancelled();
             orderRepository.save(managedOrder);
@@ -122,13 +146,13 @@ public class OrderService {
         });
     }
 
-    public OrderDetailResponse updateOrderShipping(Long userId, Long albumId, Long orderId, UpdateOrderShippingRequest request) {
+    public OrderDetailResponse updateOrderShipping(Long albumId, Long orderId, UpdateOrderShippingRequest request) {
         Map<String, Object> patch = request.toPatchMap();
         if (patch.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "배송지 변경 필드를 1개 이상 입력해야 합니다.");
         }
 
-        Order order = getOwnedOrder(userId, albumId, orderId);
+        Order order = getOwnedOrder(albumId, orderId);
         validateShippingUpdatable(order);
         if (order.getOrderUid() == null || order.getOrderUid().isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "orderUid가 없어 배송지를 변경할 수 없습니다.");
@@ -139,7 +163,7 @@ public class OrderService {
 
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
-            Order managedOrder = getOwnedOrder(userId, albumId, orderId);
+            Order managedOrder = getOwnedOrder(albumId, orderId);
             syncRemoteFromResponse(
                     managedOrder,
                     response,
@@ -245,10 +269,10 @@ public class OrderService {
         });
     }
 
-    private CreateOrderApiResponse markCreated(Long userId, Long albumId, String externalRef, String orderUid) {
+    private CreateOrderApiResponse markCreated(Long albumId, String externalRef, String orderUid) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         return template.execute(status -> {
-            getOwnedAlbum(userId, albumId);
+            getOwnedAlbum(albumId);
             Order order = orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef)
                     .orElseThrow(() -> new BusinessException(
                             ErrorCode.INVALID_INPUT,
@@ -259,10 +283,10 @@ public class OrderService {
         });
     }
 
-    private void markFailed(Long userId, Long albumId, String externalRef, String errorMessage) {
+    private void markFailed(Long albumId, String externalRef, String errorMessage) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         template.executeWithoutResult(status -> {
-            getOwnedAlbum(userId, albumId);
+            getOwnedAlbum(albumId);
             orderRepository.findByAlbumProjectIdAndExternalRef(albumId, externalRef)
                     .ifPresent(order -> {
                         if (order.getStatus() == OrderStatus.REQUESTED || order.getStatus() == OrderStatus.FAILED) {
@@ -272,13 +296,13 @@ public class OrderService {
         });
     }
 
-    private AlbumProject getOwnedAlbum(Long userId, Long albumId) {
-        return albumProjectRepository.findByIdAndUserId(albumId, userId)
+    private AlbumProject getOwnedAlbum(Long albumId) {
+        return albumProjectRepository.findById(albumId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
     }
 
-    private Order getOwnedOrder(Long userId, Long albumId, Long orderId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    private Order getOwnedOrder(Long albumId, Long orderId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         return orderRepository.findByIdAndAlbumProjectId(orderId, albumProject.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "주문을 찾을 수 없습니다."));
     }
@@ -351,16 +375,10 @@ public class OrderService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("items", itemMaps);
         payload.put("shipping", request.shipping().toMap());
-        if (request.externalUserId() != null && !request.externalUserId().isBlank()) {
-            payload.put("externalUserId", request.externalUserId().trim());
-        }
         return payload;
     }
 
-    private String resolveExternalRef(Long albumId, String requestedExternalRef, String payloadJson) {
-        if (requestedExternalRef != null && !requestedExternalRef.isBlank()) {
-            return requestedExternalRef.trim();
-        }
+    private String resolveExternalRef(Long albumId, String payloadJson) {
         byte[] hash = digestSha256(payloadJson.getBytes(StandardCharsets.UTF_8));
         return "album-" + albumId + "-order-" + HexFormat.of().formatHex(hash).substring(0, 24);
     }

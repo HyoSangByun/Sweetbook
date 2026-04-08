@@ -14,11 +14,7 @@ public record CreateOrderApiRequest(
         @NotEmpty(message = "items는 최소 1개 이상이어야 합니다.")
         List<@Valid @NotNull Item> items,
         @NotNull(message = "shipping은 필수입니다.")
-        @Valid Shipping shipping,
-        @Size(max = 100, message = "externalRef는 최대 100자입니다.")
-        String externalRef,
-        @Size(max = 100, message = "externalUserId는 최대 100자입니다.")
-        String externalUserId
+        @Valid Shipping shipping
 ) {
 
     public record Item(

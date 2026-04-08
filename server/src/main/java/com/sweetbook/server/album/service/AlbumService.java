@@ -19,8 +19,6 @@ import com.sweetbook.server.common.exception.BusinessException;
 import com.sweetbook.server.common.exception.ErrorCode;
 import com.sweetbook.server.photo.service.ActivityPhotoService;
 import com.sweetbook.server.photo.repository.ActivityPhotoRepository;
-import com.sweetbook.server.user.domain.User;
-import com.sweetbook.server.user.repository.UserRepository;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -39,18 +37,13 @@ public class AlbumService {
     private final AlbumProjectRepository albumProjectRepository;
     private final AlbumActivityRepository albumActivityRepository;
     private final ActivityRepository activityRepository;
-    private final UserRepository userRepository;
     private final ActivityPhotoRepository activityPhotoRepository;
     private final ActivityPhotoService activityPhotoService;
 
     @Transactional
-    public AlbumResponse createAlbum(Long userId, CreateAlbumRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
+    public AlbumResponse createAlbum(CreateAlbumRequest request) {
         String normalizedMonth = normalizeMonth(request.month());
         AlbumProject albumProject = AlbumProject.builder()
-                .user(user)
                 .month(normalizedMonth)
                 .title(request.title().trim())
                 .subtitle(request.subtitle())
@@ -64,8 +57,8 @@ public class AlbumService {
     }
 
     @Transactional(readOnly = true)
-    public AlbumResponse getAlbum(Long userId, Long albumId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public AlbumResponse getAlbum(Long albumId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         List<AlbumActivity> albumActivities =
                 albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
         boolean hasPhoto = hasAnyPhotoInAlbumInternal(albumProject.getId());
@@ -73,8 +66,8 @@ public class AlbumService {
     }
 
     @Transactional
-    public AlbumResponse updateAlbum(Long userId, Long albumId, UpdateAlbumRequest request) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public AlbumResponse updateAlbum(Long albumId, UpdateAlbumRequest request) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         albumProject.update(request.title(), request.subtitle(), request.monthlyReview());
         List<AlbumActivity> albumActivities =
                 albumActivityRepository.findAllByAlbumProjectIdOrderByActivityActivityDateTimeDesc(albumId);
@@ -84,18 +77,17 @@ public class AlbumService {
 
     @Transactional
     public SelectAlbumActivitiesResponse selectAlbumActivities(
-            Long userId,
             Long albumId,
             SelectAlbumActivitiesRequest request
     ) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         Set<Long> distinctActivityIds = new LinkedHashSet<>(request.activityIds());
 
         int addedCount = 0;
         int skippedCount = 0;
 
         for (Long activityId : distinctActivityIds) {
-            Activity activity = activityRepository.findByIdAndUserId(activityId, userId)
+            Activity activity = activityRepository.findById(activityId)
                     .orElseThrow(() -> new BusinessException(
                             ErrorCode.ACTIVITY_NOT_FOUND,
                             "activityId=" + activityId
@@ -118,8 +110,8 @@ public class AlbumService {
     }
 
     @Transactional
-    public DeselectAlbumActivityResponse deselectAlbumActivity(Long userId, Long albumId, Long activityId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public DeselectAlbumActivityResponse deselectAlbumActivity(Long albumId, Long activityId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         AlbumActivity albumActivity = albumActivityRepository
                 .findByAlbumProjectIdAndActivityId(albumProject.getId(), activityId)
                 .orElseThrow(() -> new BusinessException(
@@ -133,14 +125,14 @@ public class AlbumService {
         return new DeselectAlbumActivityResponse(true, selectedActivityCount);
     }
 
-    private AlbumProject getOwnedAlbum(Long userId, Long albumId) {
-        return albumProjectRepository.findByIdAndUserId(albumId, userId)
+    private AlbumProject getOwnedAlbum(Long albumId) {
+        return albumProjectRepository.findById(albumId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALBUM_NOT_FOUND));
     }
 
     @Transactional(readOnly = true)
-    public boolean hasAnyPhotoInAlbum(Long userId, Long albumId) {
-        AlbumProject albumProject = getOwnedAlbum(userId, albumId);
+    public boolean hasAnyPhotoInAlbum(Long albumId) {
+        AlbumProject albumProject = getOwnedAlbum(albumId);
         return hasAnyPhotoInAlbumInternal(albumProject.getId());
     }
 
