@@ -73,8 +73,13 @@
         </div>
         <div v-else class="activity-grid-container">
           <div class="selection-banner" v-if="selectedActivityIds.length > 0">
-            <span>{{ selectedActivityIds.length }} selected</span>
-            <button @click="handleCreateAlbum" class="btn-create-album" :disabled="albumStore.isLoading">
+            <div class="selection-info">
+              <span>{{ selectedActivityIds.length }} selected</span>
+              <span v-if="!canCreateAlbum" class="selection-hint">
+                최소 {{ MIN_ACTIVITY_COUNT }}개 이상 선택해야 Create Album이 가능합니다.
+              </span>
+            </div>
+            <button @click="handleCreateAlbum" class="btn-create-album" :disabled="albumStore.isLoading || !canCreateAlbum">
               {{ albumStore.isLoading ? 'Creating...' : 'Create Album' }}
             </button>
           </div>
@@ -124,6 +129,8 @@ const hasActivityData = computed(() => activityStore.months.length > 0);
 const activityLoadError = ref<string | null>(null);
 const isMonthSelectorLoading = ref(false);
 const isImportPending = ref(false);
+const MIN_ACTIVITY_COUNT = 24;
+const canCreateAlbum = computed(() => selectedActivityIds.value.length >= MIN_ACTIVITY_COUNT);
 
 onMounted(async () => {
   await retryLoad();
@@ -189,7 +196,7 @@ const toggleSelection = (id: number) => {
 };
 
 const handleCreateAlbum = async () => {
-  if (selectedActivityIds.value.length === 0 || !selectedMonth.value) return;
+  if (!selectedMonth.value || !canCreateAlbum.value) return;
 
   try {
     const album = await albumStore.createAlbum({
@@ -411,6 +418,16 @@ const formatDuration = (seconds: number) => {
   align-items: center;
   margin-bottom: 24px;
   box-shadow: rgba(0, 0, 0, 0.2) 0px 8px 24px;
+}
+
+.selection-info {
+  display: grid;
+  gap: 4px;
+}
+
+.selection-hint {
+  font-size: 0.8125rem;
+  color: #ffd6c7;
 }
 
 .btn-create-album {
